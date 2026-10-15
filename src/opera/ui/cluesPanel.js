@@ -44,18 +44,30 @@ export function mountCluesPanel(container, { store }) {
     }
     root.hidden = false;
     const heading = h('h3', { class: 'opera-h' }, 'Clues');
-    if (analysis.model_kind === 'mock') heading.append(' ', mockBadge());
+    if ((analysis.clues_kind ?? analysis.model_kind) === 'mock')
+      heading.append(' ', mockBadge());
     root.append(heading);
+    const appendNotices = () => {
+      for (const notice of analysis.notices ?? [])
+        root.append(h('p', { class: 'opera-muted', role: 'note' }, notice));
+    };
 
-    if (analysis.status === 'abstained') {
+    if (analysis.status === 'abstained' || analysis.status === 'failed') {
       root.append(
         h(
           'div',
           { class: 'opera-abstain', role: 'status' },
-          h('strong', {}, 'Model abstained'),
+          h(
+            'strong',
+            {},
+            analysis.status === 'failed'
+              ? 'Analysis failed'
+              : 'Model abstained',
+          ),
           h('p', {}, analysis.abstain_reason || 'No reason was given.'),
         ),
       );
+      appendNotices();
       return;
     }
     const groups = groupClues(analysis.clues);
@@ -67,6 +79,7 @@ export function mountCluesPanel(container, { store }) {
           'No clues were extracted for this image.',
         ),
       );
+      appendNotices();
       return;
     }
     root.append(
@@ -115,6 +128,7 @@ export function mountCluesPanel(container, { store }) {
           guesses.map((g) => g.region).join(', '),
         ),
       );
+    appendNotices();
   }
 
   render();

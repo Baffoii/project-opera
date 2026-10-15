@@ -1,0 +1,27 @@
+# Model registry. license_status stays `needs_human_review` until a human has read the
+# actual license files (code AND weights). Nothing here was verified against a license text.
+models:
+  - id: mock
+    role: geolocation
+    kind: mock
+    version: mock-0.1
+    license: First-party test stub (repository code). Produces deterministic placeholder output, not predictions.
+    license_status: not_applicable
+    hardware: cpu
+    notes: Always labelled model_kind=mock. Use only for UI and pipeline tests.
+  - id: geoclip-v1
+    role: geolocation
+    kind: real
+    version: unreleased
+    license: Code license and weights license not yet read in this build.
+    license_status: needs_human_review
+    hardware: CPU works but is slow; GPU recommended. Requires torch.
+    notes: Pretrained image-to-GPS baseline (VicenteVivan/geo-clip). Raw scores are uncalibrated.
+  - id: vlm-clues
+    role: clues
+    kind: real
+    version: unreleased
+    license: OpenAI API terms of service (hosted model; no weights).
+    license_status: needs_human_review
+    hardware: remote API (needs OPENAI_API_KEY)
+    notes: Extracts visible clues from the sanitized, downscaled image only. Never contributes candidate scores.

@@ -1,0 +1,78 @@
+# Source registry. Rights columns are yes | no | unknown. Every license_status is
+# `needs_human_review` unless the license file was actually read in the session that wrote it
+# (see docs/DATA_SOURCES_OPERA.md for what was read). `opera_policy` records what OPERA itself
+# commits to, which is independent of what a provider's license would allow.
+datasets:
+  - id: gods-eye-view
+    name: God's Eye View
+    opera_use: 3D globe UI and public feeds
+    license: Code MIT (LICENSE read in M0). Third-party data and assets keep their own terms.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: used
+    note: Code license vs. separate data/asset terms; see DATA_SOURCES.md upstream.
+  - id: geoclip
+    name: GeoCLIP
+    opera_use: Geolocation baseline
+    license: Code license and weights license not yet read.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: planned
+    note: Record code license and weights license separately.
+  - id: osv-5m
+    name: OSV-5M
+    opera_use: Baseline and benchmark reference
+    license: Not yet read.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: not_downloaded
+    note: Image-level rights; training and commercial use. OPERA does not bulk-download it.
+  - id: openstreetmap
+    name: OpenStreetMap / Nominatim
+    opera_use: Reverse geocoding and map features
+    license: ODbL 1.0 (attribution and share-alike); Nominatim usage policy applies.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: planned
+    note: Real User-Agent, at most 1 request/second, cache results, no bulk geocoding.
+  - id: overture-maps
+    name: Overture Maps
+    opera_use: Buildings, places, transport (optional context)
+    license: Per-theme licenses; not verified.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: not_used_in_v1
+    note: Per-theme licenses.
+  - id: kartaview-mapillary
+    name: KartaView / Mapillary
+    opera_use: Not used in V1
+    license: Provider API terms.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: not_used_in_v1
+    note: No assumed training rights.
+  - id: sentinel-landsat
+    name: Sentinel-2 / Landsat
+    opera_use: Not used in V1
+    license: Attribution required; not verified.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: not_used_in_v1
+    note: Resolution and timing limits.
+  - id: google-maps-earth
+    name: Google Maps / Earth
+    opera_use: Optional display only
+    license: Google Maps Platform terms.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: display_only
+    opera_policy: Never used for training or scraping.
+    note: Never used for training or scraping.
+  - id: niantic-spatial
+    name: Niantic Spatial
+    opera_use: Not used in V1
+    license: Not read.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: not_used_in_v1
+    note: SDK access is not data export rights.

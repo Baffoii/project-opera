@@ -23,7 +23,11 @@ export function mountCandidatesPanel(container, { store, onFlyTo }) {
     if (analysis.model_kind === 'mock') heading.append(' ', mockBadge());
     root.append(heading);
 
-    if (analysis.status === 'abstained') {
+    if (analysis.status === 'failed') {
+      root.append(
+        h('p', { class: 'opera-muted' }, 'No candidates: the analysis failed.'),
+      );
+    } else if (analysis.status === 'abstained') {
       root.append(
         h(
           'p',

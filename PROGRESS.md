@@ -3,9 +3,10 @@
 ## Morning Summary
 _(Work in progress - M0 done. This block is rewritten at the end of the session.)_
 
-- Status: M0, M1 DONE; M2-M5 pending.
+- Status: M0, M1, M2 DONE; M3-M5 pending.
 - Run upstream: `export PATH=$HOME/.opera-tools/node-v24.22.0-darwin-arm64/bin:$PATH && npm run dev`
-- Mocked so far: the whole frontend runs on MOCK fixtures when `VITE_OPERA_MOCK=1` (badge shown in UI; `model_kind: "mock"`).
+- Mocked so far: frontend runs on MOCK fixtures with `VITE_OPERA_MOCK=1`; backend only has the `mock` geo adapter (`model_kind: "mock"`); `geoclip-v1` and `vlm-clues` are registered as unavailable.
+- Run backend: `cd backend && OPERA_API_KEY=<choose> .venv/bin/uvicorn --factory app.main:create_app --port 8000`; tests: `cd backend && .venv/bin/pytest`.
 - Go live with the VLM: add `OPENAI_API_KEY` to `.env` -> restart backend -> run `python scripts/smoke_vlm.py`.
 
 ---
@@ -36,3 +37,19 @@ Globe check: headless Chrome loaded `http://localhost:4174/`, 8 canvases present
 - Candidate uncertainty circles use `ClassificationType.BOTH` (draped on terrain/3D tiles, fill only, no outline). Visual check was done on the Esri/keyless view only; Google 3D tiles were not tested (no key).
 - The OPERA panel is a fixed-position panel at the right (top 84px); I only looked at it in screenshots at 1440x900 and did not exhaustively check overlap with upstream right-rail panels at other sizes.
 **Remaining work:** Dev panel/model selector (M3), benchmark UI (M5), OSM attribution credit once Nominatim labels exist (M4).
+
+## M2 - Backend foundation - DONE
+**Changed files:** new `backend/` (`pyproject.toml`; `app/{config,schemas,db,context,registry,main}.py`; `app/services/{sanitize,storage,ratelimit,audit,pipeline,sweeper}.py`; `app/adapters/{base,mock,registry}.py`; `app/geo/haversine.py`; `app/routes/{deps,health,analyze,registry}.py`; `registry/{models,datasets}.yaml`; `tests/*`). Edited: `.env.example` (OPERA block appended), `.gitignore` (+`*.egg-info/`), `docs/DECISIONS.md` (D10-D17), frontend `ui/cluesPanel.js` + `ui/candidatesPanel.js` (MOCK badge on clues now follows `clues_kind`; shows backend `notices`; distinct `failed` state) and `tests/opera/panels.spec.js` (+2 tests).
+**Commands run:** `backend/.venv/bin/pytest`; mutation check of the EXIF test; live `uvicorn --factory` on :8011 with curl (health, authenticated analyze, unauthenticated 401), then stopped; `npx vitest run`; browser E2E on :4180 (stopped after); upstream `npm test`, `npm run build`, `format:check`, `check:boundaries`.
+**Test evidence:**
+- Backend pytest: `41 passed in 0.73s`. Covers health, auth (missing/wrong/non-ASCII key, fail-closed with no key), rate limit (429 + Retry-After, health exempt), CORS origin restriction, bad type / spoofed extension / GIF / garbage body / oversize (body and Content-Length) / pixel bomb, rights attestation, unknown/unavailable model, EXIF+GPS+XMP stripping (source fixture asserted to contain GPS first; output checked via parsed tags and raw bytes; PNG text/eXIf chunks), orientation applied before stripping, analyze->get->delete lifecycle (file and rows gone, 204 then 404), TTL sweeper, cascade delete, audit log contents (no ids/filenames/IP), band thresholds, abstention, adapter failure, clue adapter output kept separate from candidates, cost from tokens, haversine, token bucket, storage traversal safety.
+- Mutation check: making the sanitizer pass the original EXIF through made 3 tests fail; restored and re-ran: 41 passed. One real bug found and fixed by the tests (latency JSON not persisted because the same dict was mutated).
+- Vitest: `Test Files 5 passed (5) / Tests 35 passed (35)`. Browser E2E (mock mode): 12/12 PASS, no console errors. Upstream `npm test` unchanged: `tests 6534 / pass 6533 / fail 0 / skipped 1`; `format:check` Checked 1353 source files; `check:boundaries` passed; `npm run build` succeeded.
+**Mocked / stubbed:** only the `mock` geo adapter is functional (labelled `model_kind: "mock"`, labels `MOCK: ...`). `geoclip-v1` is an `unavailable` placeholder and `analyze` with it returns 503; `vlm-clues` is an `unavailable` placeholder (reason "no key"). Candidate `uncertainty_km` is a per-band heuristic, not a measured error. Every candidate is `uncalibrated: true`.
+**Blockers:** none.
+**Known issues / honesty notes:**
+- PostgreSQL/PostGIS path (`ensure_postgis`, docker-compose) is untested: Docker is not installed. SQLite only.
+- Rate limiter is in-memory, single-process. The sync `POST /analyze` runs inference inline; no job queue (fine for V1 single-user).
+- The frontend defaults to `model=geoclip-v1`, so against this backend a real-mode analyze returns a visible 503 until M3 adds GeoCLIP and the model selector. I did not test the real-mode frontend against the live backend in a browser (only unit tests against a fake fetch, and curl against the backend).
+- No Alembic migrations: `create_all` only (D-log). Audit log is never pruned.
+**Remaining work:** M3 (VLM adapter, GeoCLIP, dev panel/model selector), M4 (Nominatim context), M5 (benchmark, docs, compose, final summary).

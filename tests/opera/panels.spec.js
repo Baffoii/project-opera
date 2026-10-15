@@ -36,6 +36,32 @@ describe('clues panel', () => {
     expect(host.textContent).toContain('Model abstained');
     expect(host.querySelector('.opera-clue')).toBeNull();
   });
+  it('shows backend notices and no MOCK badge when only candidates are mock', () => {
+    const real = {
+      ...analysis(),
+      model_kind: 'mock',
+      clues_kind: 'none',
+      clues: [],
+      notices: ['VLM clues unavailable: no key.'],
+    };
+    mountCluesPanel(host, { store: createOperaStore({ analysis: real }) });
+    expect(host.querySelector('.opera-badge-mock')).toBeNull();
+    expect(host.textContent).toContain('VLM clues unavailable: no key.');
+  });
+  it('shows a failed analysis distinctly from an abstention', () => {
+    const failed = {
+      ...analysis(),
+      status: 'failed',
+      abstain_reason: 'mock failed (RuntimeError).',
+      candidates: [],
+    };
+    const store = createOperaStore({ analysis: failed });
+    mountCluesPanel(host, { store });
+    mountCandidatesPanel(host, { store, onFlyTo: () => {} });
+    expect(host.textContent).toContain('Analysis failed');
+    expect(host.textContent).toContain('the analysis failed');
+    expect(host.textContent).not.toContain('Model abstained');
+  });
   it('renders clue text as text, never HTML', () => {
     const evil = {
       ...analysis(),
