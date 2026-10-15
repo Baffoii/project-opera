@@ -76,3 +76,20 @@ datasets:
     rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
     status: not_used_in_v1
     note: SDK access is not data export rights.
+  - id: wikimedia-commons
+    name: Wikimedia Commons (opera-commons-v1 benchmark photos)
+    opera_use: Small geotagged benchmark set (evaluation only); attribution shown on every reveal
+    license: Per-file (CC0 / CC BY / CC BY-SA recorded in the manifest). The individual licence pages were NOT read by a human.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: no, redistribution: unknown}
+    status: used
+    opera_policy: Images are downloaded by scripts/fetch_benchmark.py, git-ignored, never used for training; only the manifest is committed.
+    note: Geotags on Commons may mark the photographed object rather than the camera position. Rate-limited, identified User-Agent.
+  - id: reverse-geocoder
+    name: reverse_geocoder (offline country lookup over GeoNames)
+    opera_use: Country of a predicted coordinate, for country-accuracy metrics (optional `eval` extra)
+    license: Package LGPL-2.1+ as declared upstream; GeoNames data CC BY 4.0. Not read from the installed files.
+    license_status: needs_human_review
+    rights: {display: unknown, evaluation: unknown, fine_tuning: unknown, redistribution: unknown}
+    status: used
+    note: Offline, no network calls. Without it country metrics are null and the run says so.

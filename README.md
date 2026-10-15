@@ -549,6 +549,51 @@ a separately reviewed authentication proxy if remote access is required.
 
 ---
 
+## 📷 Running OPERA (photo geolocation)
+
+OPERA adds a privacy-preserving photo geolocation panel and a GeoGuessr-style benchmark to the globe. A photo goes
+in, up to five ranked candidate locations come out, with clues, provenance and an honest `uncalibrated` label. Scope and
+prohibited uses: [docs/PRIVACY.md](docs/PRIVACY.md). Endpoints: [docs/API.md](docs/API.md).
+
+**Backend** (Python 3.12+; tested on 3.13). From the repo root:
+
+```bash
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev,eval]"          # add ,geoclip for the real local model (large: installs torch)
+cp ../.env.example ../.env                      # then set OPERA_API_KEY to a secret you choose
+OPERA_API_KEY=<same secret> .venv/bin/uvicorn --factory app.main:create_app --port 8000
+```
+
+Without `geoclip` only the `mock` model runs, and everything it produces is labelled `MOCK`. SQLite is the default and
+the tested database; uploads live in `backend/uploads/` (git-ignored).
+
+**Frontend** (Node 24+):
+
+```bash
+npm ci
+VITE_OPERA_API_URL=http://127.0.0.1:8000 VITE_OPERA_API_KEY=<same secret> npm run dev
+# no backend? VITE_OPERA_MOCK=1 npm run dev  runs the panel on labelled MOCK fixtures
+```
+
+Open the OPERA panel on the right: **Analyze** takes a JPG/PNG/WebP and an attestation that you may analyze it;
+**Benchmark** plays rounds against the model. The Developer view shows the model selector, latency, cost and the dataset registry.
+
+**Optional VLM clues:** add `OPENAI_API_KEY` to `.env`, restart the backend, then `python scripts/smoke_vlm.py`
+(from `backend/`). Without a key, clues are mock and say so.
+
+**Evaluation:** `cd backend && .venv/bin/python -m app.eval.cli run --dataset opera-synthetic-v1 --split heldout --model mock`.
+The synthetic dataset only exercises the pipeline. The real benchmark images are downloaded, not committed:
+`python scripts/fetch_benchmark.py opera-commons-v1`.
+
+**Docker:** `docker compose up --build` (after `cp .env.example .env`, setting `OPERA_API_KEY` and `OPERA_DB_PASSWORD`).
+Written but never run: Docker was not available when this was built, and the PostGIS path is untested.
+
+**Tests:** `make test` runs backend pytest, the OPERA Vitest specs and the upstream gates. Browser checks:
+`tests/opera/e2e/*.mjs` (usage at the top of each file).
+
+---
+
 ## 📋 Responsible & Open
 
 God's Eye View runs on **public data, clear sources, and local-first execution.** No secrets, no private datasets, no mystery scraping — anything involving a private key is brokered server-side. It has the visual grammar of a classified ops room, built entirely from open signals and inspectable code.
