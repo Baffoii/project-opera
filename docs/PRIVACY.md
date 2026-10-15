@@ -28,8 +28,8 @@ people entirely and to abstain on images with no usable scenery (`backend/app/ad
    in the spec was not built). Turn the option off to keep the image local.
 5. Place names: only coordinates rounded to 3 decimals go to OSM Nominatim (never the image). Set
    `OPERA_CONTEXT_ENABLED=false` to disable.
-6. The audit log records event type, status, timings and a salted hash of the client, never image content, filenames,
-   ids of uploaded images or IP addresses.
+6. The audit log records request id, endpoint, model, HTTP status and a salted hash of the client address; never image content,
+   filenames or raw IP addresses.
 
 ## Output honesty
 

@@ -17,7 +17,7 @@ at `/openapi.json`. This page adds the behaviour the schema cannot express, with
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/health` | Liveness and which adapters are available. No key needed. |
+| `GET /api/health` | Database, storage and per-adapter readiness. No key needed. |
 | `POST /api/v1/analyze` | Multipart upload, returns the analysis. |
 | `GET /api/v1/analyses/{id}` | Fetch a stored analysis (404 once deleted or expired). |
 | `DELETE /api/v1/analyses/{id}` | Delete image file and rows (204). |
@@ -37,7 +37,7 @@ The two `/benchmark` groups and the `evaluations` listing are additions to the c
 
 Form fields: `image` (file; JPEG, PNG or WebP, checked by magic bytes), `model` (optional id, default
 `OPERA_DEFAULT_MODEL`), `use_vlm_clues` (bool, default false), `metadata_free` (bool, default true),
-`rights_attested` (must be `true`, else `422`). Oversize or oversized-pixel images answer `413`/`400`/`422`; an unknown model
+`rights_attested` (must be `true`, else `422`). Oversize files or too many pixels answer `413`, a wrong type `415`, an undecodable or empty file `400`; an unknown model
 `400`; a model that is registered but cannot run (missing weights, no key) `503` with the reason.
 
 The image is decoded and re-encoded server-side, which drops EXIF/XMP/IPTC/GPS, before anything else sees it.

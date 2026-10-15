@@ -35,3 +35,5 @@ __pycache__/
 .coverage
 dist/
 *.egg-info/
+# OPERA: downloaded benchmark images (manifest.csv is tracked; scripts/fetch_benchmark.py fetches the images).
+backend/fixtures/benchmark/opera-commons-v1/images/
