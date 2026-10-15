@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     context_base_url: str = "https://nominatim.openstreetmap.org"
     context_timeout_s: float = 3.0
     context_min_interval_s: float = 1.1
+    context_budget_s: float = 8.0  # total time one analysis may spend on place names
 
     @property
     def cors_origin_list(self) -> list[str]:

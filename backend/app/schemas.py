@@ -16,6 +16,15 @@ class Clue(BaseModel):
     certainty: Literal["observed", "speculative"]
 
 
+class CandidateContext(BaseModel):
+    """Place names for a candidate from the context provider (OpenStreetMap Nominatim)."""
+
+    status: Literal["ok", "cached", "stale", "no_result", "unavailable"]
+    country: str | None = None
+    admin_region: str | None = None
+    place: str | None = None
+
+
 class Candidate(BaseModel):
     rank: int = Field(ge=1, le=5)
     lat: float = Field(ge=-90, le=90)
@@ -28,6 +37,7 @@ class Candidate(BaseModel):
     # Heuristic radius derived from the confidence band until calibration exists (M5).
     uncertainty_km: float | None = None
     source_model: str  # adapter id + version
+    context: CandidateContext | None = None  # None = context was not requested for this candidate
 
 
 class Analysis(BaseModel):

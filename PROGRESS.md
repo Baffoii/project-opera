@@ -1,11 +1,12 @@
 # OPERA V1 progress
 
 ## Morning Summary
-_(Work in progress: M0-M3 done. This block is rewritten at the end of the session.)_
+_(Work in progress: M0-M4 done. This block is rewritten at the end of the session.)_
 
-- Status: M0, M1, M2, M3 DONE; M4 (Nominatim context) and M5 (benchmark, docs, compose) pending.
+- Status: M0, M1, M2, M3, M4 DONE; M5 (benchmark, calibration, docs, compose) pending.
 - Real now: `geoclip-v1` runs GeoCLIP locally on CPU through the full UI (a Lisbon photo with no EXIF returned Lisbon as rank 1, `model_kind: "real"`, about 10 s on first request incl. model load). Scores are raw, uncalibrated; thresholds are provisional.
 - Mocked: with no `OPENAI_API_KEY`, clues are labelled `MOCK` (`clues_kind: "mock"`). The VLM adapter is **built, not yet verified against the live API** (tested with fake clients and a mocked HTTP transport only).
+- Place names: candidates are labelled via OSM Nominatim (rounded coordinates only, cached, rate-limited, fails soft to coordinates). Set `OPERA_CONTEXT_USER_AGENT` to a real app name + contact before non-local use; never tested against the public service.
 - Needs a human: licenses for GeoCLIP weights and the CLIP backbone (`needs_human_review` in `backend/registry/models.yaml`); PostGIS path and Google 3D tiles untested.
 - Run backend: `cd backend && OPERA_API_KEY=<choose> .venv/bin/uvicorn --factory app.main:create_app --port 8000`; tests: `cd backend && .venv/bin/pytest`; frontend tests: `npx vitest run`.
 - Run UI against it: `VITE_OPERA_API_KEY=<same> VITE_OPERA_API_URL=http://127.0.0.1:8000 npm run dev` (open the OPERA panel, Developer view shows the model selector and latency). `VITE_OPERA_MOCK=1` runs the UI with no backend.
@@ -75,3 +76,20 @@ Globe check: headless Chrome loaded `http://localhost:4174/`, 8 canvases present
 - Licenses: GeoCLIP code is MIT (LICENSE read from the wheel). Weights and the OpenAI CLIP backbone licenses were not read: `needs_human_review`.
 - The OPERA panel in the 1440x900 screenshot sits under upstream's first-run "Choose your first view" dialog on a fresh profile; not changed.
 **Remaining work:** M4 (Nominatim context + OSM attribution, candidate region labels), M5 (benchmark mode, calibration, docker-compose (untested), README/API/PRIVACY docs, final Morning Summary).
+
+## M4 - Geographic context - DONE (optional boundary overlay and Overture not built)
+**Changed files:** new `backend/app/geo/context_provider.py`, `backend/tests/{test_context_provider,test_pipeline_context}.py`, `tests/opera/e2e/nominatim_stub.py`. Edited: `backend/app/{config,context,db,main,schemas}.py`, `backend/app/routes/health.py`, `backend/app/services/pipeline.py`, `src/opera/{app.js,globe/candidateOverlays.js,ui/candidatesPanel.js}`, `tests/opera/{panels.spec.js,e2e/real-ui.mjs}`, `.env.example`, `docs/{DECISIONS,DATA_SOURCES_OPERA}.md` (D28-D34).
+**Commands run:** `backend/.venv/bin/pytest`; `npx vitest run`; `npm test`; `npm run check:boundaries`; `npm run format:check`; mock E2E (`VITE_OPERA_MOCK=1`, :4180); real E2E with local stub: `python tests/opera/e2e/nominatim_stub.py 8099`, backend with `OPERA_CONTEXT_BASE_URL=http://127.0.0.1:8099`, `STUB_URL=http://127.0.0.1:8099 node tests/opera/e2e/real-ui.mjs ...`. All servers I started were stopped afterwards; logs in `/tmp/opera-e2e`.
+**Test evidence:**
+- Backend pytest: `90 passed` (was 68). New provider tests (httpx.MockTransport + fake clock): parse + policy headers + coordinate rounding, cache hit without a second request, stale fallback after TTL, ocean `no_result`, 5xx retry with backoff, timeouts exhaust retries, 429 not retried + cooldown + recovery, >=1.1 s spacing, deadline respected, invalid JSON/unexpected status without detail leak, repeated-failure cooldown, disabled provider. Pipeline tests: names + context + attribution persisted and returned by GET, **total provider failure still returns 3 candidates with a notice and no attribution**, partial failure, provider bug exposes only the exception type, mock candidates never geocoded, no provider configured, abstained analyses not geocoded, health lists the provider, old SQLite gains the column.
+- Vitest: `Test Files 5 passed (5) / Tests 42 passed (42)` (+2: failed lookup vs open water with coordinates still shown; stale note + attribution line).
+- Real-mode browser E2E (real GeoCLIP, local Nominatim stub): all checks PASS, no console errors. First analysis with the provider returning HTTP 500: 5 candidates still render with "Place name unavailable" + coordinates, notice shown, no OSM attribution. Second analysis with the stub answering: labels "Stubville, Test Region, Testland", `context.status: "ok"`, attribution in the panel and a static Cesium credit on screen (bounding box > 0). Context stage took ~2.2 s for the failing case.
+- Mock E2E: 12/12 PASS. `npm test`: 13/13 (smaller suite) green; `check:boundaries` passed; `format:check`: Checked 1354 source files.
+**Mocked / stubbed:** Place names in E2E come from a local stub, not OSM. Mock-model candidates keep their `MOCK:` labels and are not enriched.
+**Blockers:** none.
+**Known issues / honesty notes:**
+- **No live request was made to the public Nominatim** (D30): the default User-Agent is a placeholder; the owner must set `OPERA_CONTEXT_USER_AGENT` with real contact details first. Real response parsing is tested against hand-written JSONv2 samples only, so field names for unusual regions (e.g. `municipality`-only results) are unverified.
+- The cache is in memory (lost on restart, per process). The 1.1 s spacing means five uncached candidates cost about 5.5 s; cached lookups are instant. A self-hosted Nominatim via `OPERA_CONTEXT_BASE_URL` would be the answer for volume.
+- Not built: country/admin boundary overlay, Overture provider (both optional; D34).
+- ODbL share-alike obligations for stored results were not analysed; recorded as `needs_human_review`.
+**Remaining work:** M5.

@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .adapters.base import ClueAdapter, GeoAdapter
 from .config import Settings
+from .geo.context_provider import ContextProvider
 from .services.ratelimit import TokenBucketLimiter
 from .services.storage import Storage
 
@@ -20,3 +21,4 @@ class AppContext:
     geo_adapters: dict[str, GeoAdapter]
     clue_adapters: dict[str, ClueAdapter]
     limiter: TokenBucketLimiter
+    context_provider: ContextProvider | None = None

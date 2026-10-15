@@ -104,6 +104,7 @@ class CandidateRow(Base):
     uncalibrated: Mapped[bool] = mapped_column(Boolean, default=True)
     uncertainty_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     source_model: Mapped[str] = mapped_column(String(64))
+    context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     analysis: Mapped[AnalysisRow] = relationship(back_populates="candidates")
 
 
@@ -173,8 +174,20 @@ def make_engine(database_url: str) -> Engine:
 def init_db(engine: Engine) -> None:
     """Create tables. This is a deliberately simple migration story (create_all); see docs/DECISIONS.md."""
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
     if engine.dialect.name == "postgresql":
         ensure_postgis(engine)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    """create_all never alters existing tables; add the few nullable columns introduced after M2."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    for table, column, ddl in (("candidates", "context", "JSON"),):
+        if column not in {c["name"] for c in inspector.get_columns(table)}:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
 
 
 def ensure_postgis(engine: Engine) -> None:

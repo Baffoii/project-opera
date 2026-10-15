@@ -8,7 +8,8 @@ from datetime import timedelta
 from ..adapters.base import ClueError, RawCandidate
 from ..context import AppContext
 from ..db import AnalysisRow, CandidateRow, UploadRow, session_scope, utcnow
-from ..schemas import Analysis, Candidate, Clue
+from ..geo.context_provider import ContextUnavailable, PlaceContext
+from ..schemas import Analysis, Candidate, CandidateContext, Clue
 from .sanitize import SanitizedImage
 
 log = logging.getLogger("opera.pipeline")
@@ -47,6 +48,7 @@ def analysis_from_row(row: AnalysisRow) -> Analysis:
                 uncalibrated=c.uncalibrated,
                 uncertainty_km=c.uncertainty_km,
                 source_model=c.source_model,
+                context=CandidateContext(**c.context) if c.context else None,
             )
             for c in row.candidates
         ],
@@ -69,6 +71,48 @@ def _cost(ctx: AppContext, input_tokens: int | None, output_tokens: int | None) 
     return round(
         input_tokens / 1e6 * s.vlm_price_input_per_mtok + output_tokens / 1e6 * s.vlm_price_output_per_mtok, 6
     )
+
+
+def _enrich(ctx: AppContext, raw: list[RawCandidate], notices: list[str], provenance: list[dict]) -> list[dict | None]:
+    """Place names per candidate, within one time budget. A provider failure never fails the analysis."""
+    provider = ctx.context_provider
+    if provider is None or not raw:
+        return [None] * len(raw)
+    deadline = time.monotonic() + ctx.settings.context_budget_s
+    results: list[dict | None] = []
+    failure: str | None = None
+    for candidate in raw:
+        try:
+            if failure is not None:
+                raise ContextUnavailable(failure)
+            place: PlaceContext = provider.reverse(candidate.lat, candidate.lon, deadline=deadline)
+        except ContextUnavailable as exc:
+            failure = failure or str(exc)
+            results.append({"status": "unavailable"})
+            continue
+        except Exception as exc:  # a provider bug must not take the analysis down
+            log.warning("context provider failed: %s", type(exc).__name__)
+            failure = failure or f"provider error ({type(exc).__name__})"
+            results.append({"status": "unavailable"})
+            continue
+        candidate.label = candidate.label or place.label
+        candidate.country_code = candidate.country_code or place.country_code
+        results.append(
+            {
+                "status": place.status,
+                "country": place.country,
+                "admin_region": place.admin_region,
+                "place": place.place,
+            }
+        )
+    if failure is not None:
+        n = sum(1 for r in results if r and r["status"] == "unavailable")
+        notices.append(f"Place names unavailable for {n} of {len(raw)} candidates ({failure}); showing coordinates only.")
+    if any(r and r["status"] != "unavailable" for r in results):
+        provenance.append(
+            {"provider": provider.id, "role": "context", "attribution": provider.attribution, "license": "ODbL 1.0"}
+        )
+    return results
 
 
 def run_analysis(
@@ -166,6 +210,12 @@ def run_analysis(
         status = "abstained"
         abstain_reason = "Top raw score is below the abstention threshold; the model is not confident enough to suggest places."
 
+    contexts: list[dict | None] = [None] * len(raw)
+    if status == "complete" and adapter.kind != "mock":  # mock candidates carry their own labels
+        t = time.perf_counter()
+        contexts = _enrich(ctx, raw, notices, provenance)
+        latency["context"] = round((time.perf_counter() - t) * 1000, 2)
+
     now = utcnow()
     expires = now + timedelta(hours=s.upload_ttl_hours)
     analysis_id = secrets.token_hex(12)
@@ -217,6 +267,7 @@ def run_analysis(
                         uncalibrated=True,
                         uncertainty_km=UNCERTAINTY_KM[band],
                         source_model=f"{adapter.id}@{adapter.version}",
+                        context=contexts[rank - 1],
                     )
                 )
         session.add(upload)

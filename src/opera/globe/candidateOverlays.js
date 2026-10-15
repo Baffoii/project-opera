@@ -3,6 +3,16 @@ import { flyToAltitudeM, planOverlays } from './overlayPlan.js';
 
 const markerImages = new Map();
 
+function escapeHtml(text) {
+  return String(text).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
+        c
+      ],
+  );
+}
+
 function markerImage(rank, color, active) {
   const key = `${rank}|${color}|${active}`;
   if (markerImages.has(key)) return markerImages.get(key);
@@ -36,6 +46,19 @@ export function createCandidateOverlays(viewer, { requestRender } = {}) {
   viewer.dataSources.add(dataSource);
   let plan = [];
   let activeRank = null;
+  /** @type {Map<string, object>} attribution text → static Cesium.Credit */
+  const credits = new Map();
+
+  function removeCredits() {
+    for (const credit of credits.values()) {
+      try {
+        viewer.creditDisplay?.removeStaticCredit?.(credit);
+      } catch {
+        /* credit display already torn down */
+      }
+    }
+    credits.clear();
+  }
 
   const redraw = () => {
     viewer.scene.requestRender?.();
@@ -110,13 +133,39 @@ export function createCandidateOverlays(viewer, { requestRender } = {}) {
       });
       redraw();
     },
+    /** Keep one visible static credit per attribution string; credits not listed are removed. */
+    setAttributions(texts) {
+      const wanted = new Set((texts ?? []).filter(Boolean));
+      for (const [text, credit] of [...credits]) {
+        if (wanted.has(text)) continue;
+        try {
+          viewer.creditDisplay?.removeStaticCredit?.(credit);
+        } catch {
+          /* credit display already torn down */
+        }
+        credits.delete(text);
+      }
+      for (const text of wanted) {
+        if (credits.has(text) || !viewer.creditDisplay) continue;
+        try {
+          const credit = new Cesium.Credit(escapeHtml(text), true);
+          viewer.creditDisplay.addStaticCredit(credit);
+          credits.set(text, credit);
+        } catch {
+          /* credit display unavailable */
+        }
+      }
+      redraw();
+    },
     clear() {
       plan = [];
       activeRank = null;
       dataSource.entities.removeAll();
+      removeCredits();
       redraw();
     },
     destroy() {
+      removeCredits();
       viewer.dataSources.remove(dataSource, true);
       redraw();
     },

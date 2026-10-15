@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from .adapters.registry import build_clue_adapters, build_geo_adapters
 from .config import Settings, get_settings
 from .context import AppContext
+from .geo.context_provider import NominatimProvider
 from .db import init_db, make_engine, make_session_factory
 from .routes import analyze, health
 from .routes import registry as registry_routes
@@ -43,6 +44,7 @@ def create_app(settings: Settings | None = None, ctx: AppContext | None = None) 
             geo_adapters=build_geo_adapters(settings),
             clue_adapters=build_clue_adapters(settings),
             limiter=TokenBucketLimiter(settings.rate_limit_per_min, settings.rate_limit_burst),
+            context_provider=NominatimProvider(settings) if settings.context_enabled else None,
         )
 
     @asynccontextmanager
@@ -57,6 +59,9 @@ def create_app(settings: Settings | None = None, ctx: AppContext | None = None) 
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+            close = getattr(ctx.context_provider, "close", None)
+            if close:
+                close()
 
     app = FastAPI(title="OPERA backend", version="0.1.0", lifespan=lifespan)
     app.state.ctx = ctx

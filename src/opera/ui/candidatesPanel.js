@@ -6,6 +6,17 @@ export function formatCoordinates(lat, lon) {
   return `${Math.abs(lat).toFixed(3)}°${ns}, ${Math.abs(lon).toFixed(3)}°${ew}`;
 }
 
+const CONTEXT_NOTES = {
+  unavailable: 'Place name unavailable (lookup failed); coordinates only',
+  no_result: 'No place name here (open water or unmapped area)',
+  stale: 'Place name from an older cached lookup',
+};
+
+export function candidateTitle(c) {
+  if (c.label) return c.label;
+  return CONTEXT_NOTES[c.context?.status] ?? 'Context unavailable';
+}
+
 export function mountCandidatesPanel(container, { store, onFlyTo }) {
   const root = h('section', {
     class: 'opera-section',
@@ -62,7 +73,7 @@ export function mountCandidatesPanel(container, { store, onFlyTo }) {
             h(
               'div',
               { class: 'opera-candidate-body' },
-              h('strong', {}, c.label || 'Context unavailable'),
+              h('strong', {}, candidateTitle(c)),
               h('small', {}, formatCoordinates(c.lat, c.lon)),
               h(
                 'small',
@@ -76,6 +87,9 @@ export function mountCandidatesPanel(container, { store, onFlyTo }) {
                 c.uncalibrated ? ' (uncalibrated)' : '',
                 c.uncertainty_km != null ? ` · ±${c.uncertainty_km} km` : '',
               ),
+              c.label && c.context?.status === 'stale'
+                ? h('small', { class: 'opera-muted' }, CONTEXT_NOTES.stale)
+                : null,
               h('small', { class: 'opera-muted' }, `model: ${c.source_model}`),
             ),
             h(

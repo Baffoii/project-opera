@@ -2,8 +2,14 @@
 //   OPERA_API_KEY=k OPERA_CORS_ORIGINS=http://localhost:4180 backend/.venv/bin/uvicorn --factory app.main:create_app --port 8000
 //   VITE_OPERA_API_KEY=k VITE_OPERA_API_URL=http://127.0.0.1:8000 npm run dev -- --host localhost --port 4180
 //   node tests/opera/e2e/real-ui.mjs http://localhost:4180 /path/to/photo.jpg /tmp/shots
+// Optional M4 checks (never touches the public Nominatim): start the stub
+//   python tests/opera/e2e/nominatim_stub.py 8099
+// run the backend with OPERA_CONTEXT_BASE_URL=http://127.0.0.1:8099 and set STUB_URL=http://127.0.0.1:8099.
+// The first analysis runs with the provider failing, the second with it answering.
 import { mkdirSync } from 'node:fs';
 import puppeteer from 'puppeteer';
+
+const STUB_URL = process.env.STUB_URL;
 
 const [url = 'http://localhost:4180', photo, outDir = '/tmp/opera-real-shots'] =
   process.argv.slice(2);
@@ -67,6 +73,7 @@ check(
   (await page.$eval('#opera-model', (s) => s.value)) === 'geoclip-v1',
 );
 
+if (STUB_URL) await fetch(`${STUB_URL}/__mode/fail`);
 await (await page.$('.opera-root input[type=file]')).uploadFile(photo);
 await page.waitForSelector('.opera-preview img');
 await page.click('#opera-rights');
@@ -140,8 +147,39 @@ check(
         .entities.values.length,
   )) === 5,
 );
+if (STUB_URL) {
+  check(
+    'provider down: every candidate has context.status=unavailable',
+    a.candidates.every((c) => c.context?.status === 'unavailable'),
+  );
+  check(
+    'provider down: coordinates and an explicit note are shown',
+    await page.$$eval(
+      '.opera-candidate',
+      (els) =>
+        els.length === 5 &&
+        els.every(
+          (e) =>
+            /Place name unavailable/.test(e.textContent) &&
+            /°[NS], \d+\.\d+°[EW]/.test(e.textContent),
+        ),
+    ),
+  );
+  check(
+    'provider down: notice explains it and no OSM attribution is claimed',
+    a.notices.some((n) => /Place names unavailable/.test(n)) &&
+      !/OpenStreetMap/.test(
+        await page.$eval(
+          '[aria-label="Candidate locations"]',
+          (e) => e.textContent,
+        ),
+      ),
+  );
+}
 await new Promise((r) => setTimeout(r, 3500));
 await page.screenshot({ path: `${outDir}/real-01-analyzed.png` });
+
+if (STUB_URL) await fetch(`${STUB_URL}/__mode/ok`);
 
 // Toggle VLM clues off and re-run: clues must disappear and the notice must not mention MOCK clues.
 await page.click('#opera-vlm');
@@ -151,6 +189,39 @@ await page.waitForFunction(
   { timeout: 180000 },
 );
 check('VLM toggle off yields no clues', true);
+if (STUB_URL) {
+  const second = await page.evaluate(() => window.__opera.store.get().analysis);
+  check(
+    'provider up: candidates carry place names and context',
+    second.candidates.every(
+      (c) =>
+        c.label === 'Stubville, Test Region, Testland' &&
+        c.context?.status === 'ok',
+    ),
+  );
+  check(
+    'provider up: attribution visible in the panel',
+    await page.$eval(
+      '[aria-label="Candidate locations"] .opera-attribution',
+      (e) => /© OpenStreetMap contributors/.test(e.textContent),
+    ),
+  );
+  const credit = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.cesium-widget-credits *')].find(
+      (n) =>
+        n.children.length === 0 &&
+        /OpenStreetMap contributors/.test(n.textContent),
+    );
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { w: r.width, h: r.height };
+  });
+  check(
+    'provider up: static Cesium credit is on screen',
+    credit && credit.w > 0 && credit.h > 0,
+  );
+  await page.screenshot({ path: `${outDir}/real-03-context.png` });
+}
 await page.screenshot({ path: `${outDir}/real-02-no-vlm.png` });
 console.log(
   'console/page errors:',

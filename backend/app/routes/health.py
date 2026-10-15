@@ -20,7 +20,8 @@ def health(ctx: AppContext = Depends(get_ctx)) -> dict:
     storage = "ok" if ctx.storage.healthy() else "error"
     adapters: dict[str, str] = {}
     notes: dict[str, str] = {}
-    for adapter in [*ctx.geo_adapters.values(), *ctx.clue_adapters.values()]:
+    providers = [ctx.context_provider] if ctx.context_provider else []
+    for adapter in [*ctx.geo_adapters.values(), *ctx.clue_adapters.values(), *providers]:
         ready, reason = adapter.availability()
         adapters[adapter.id] = "ready" if ready else "unavailable"
         if not ready and reason:

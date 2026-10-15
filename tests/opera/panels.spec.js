@@ -140,6 +140,52 @@ describe('candidates panel', () => {
     });
     expect(host.textContent).toContain('Context unavailable');
   });
+  it('distinguishes a failed lookup from open water and still shows coordinates', () => {
+    const a = analysis();
+    a.candidates[0] = {
+      ...a.candidates[0],
+      label: null,
+      context: { status: 'unavailable' },
+    };
+    a.candidates[1] = {
+      ...a.candidates[1],
+      label: null,
+      context: { status: 'no_result' },
+    };
+    mountCandidatesPanel(host, {
+      store: createOperaStore({ analysis: a }),
+      onFlyTo() {},
+    });
+    const items = host.querySelectorAll('.opera-candidate');
+    expect(items[0].textContent).toContain('Place name unavailable');
+    expect(items[0].textContent).toMatch(/°[NS], \d+\.\d+°[EW]/);
+    expect(items[1].textContent).toContain('open water or unmapped');
+  });
+  it('flags names served from a stale cache and shows the OSM attribution from provenance', () => {
+    const a = analysis();
+    a.candidates[0] = {
+      ...a.candidates[0],
+      label: 'Lisbon, Portugal',
+      context: { status: 'stale', place: 'Lisbon' },
+    };
+    a.provenance = [
+      {
+        provider: 'nominatim',
+        role: 'context',
+        attribution: '© OpenStreetMap contributors',
+      },
+    ];
+    mountCandidatesPanel(host, {
+      store: createOperaStore({ analysis: a }),
+      onFlyTo() {},
+    });
+    const first = host.querySelector('.opera-candidate');
+    expect(first.textContent).toContain('Lisbon, Portugal');
+    expect(first.textContent).toContain('older cached lookup');
+    expect(host.querySelector('.opera-attribution').textContent).toBe(
+      'Data: © OpenStreetMap contributors',
+    );
+  });
 });
 
 describe('upload panel', () => {

@@ -120,8 +120,14 @@ export function mountOpera({
   ];
 
   const unsubscribe = store.subscribe((state, _prev, changed) => {
-    if (changed.includes('analysis'))
+    if (changed.includes('analysis')) {
       overlays.setCandidates(state.analysis?.candidates ?? []);
+      overlays.setAttributions(
+        (state.analysis?.provenance ?? [])
+          .filter((p) => p.role === 'context')
+          .map((p) => p.attribution),
+      );
+    }
     if (changed.includes('activeCandidateId'))
       overlays.setActive(state.activeCandidateId);
     if (changed.includes('panelOpen')) {
