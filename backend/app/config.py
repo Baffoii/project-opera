@@ -39,7 +39,8 @@ class Settings(BaseSettings):
     # Models
     default_model: str = "geoclip-v1"
     # Provisional, UNCALIBRATED thresholds on GeoCLIP's raw gallery softmax mass. Picked by eyeballing 7
-    # Commons photos in M3 (top-1 ranged 0.0045-0.056); M5 replaces them with benchmark-based values.
+    # Commons photos in M3. The M5 calibration fit on 30 seed photos was degenerate and was not adopted
+    # (docs/BENCHMARK_RESULTS.md, D44).
     abstain_below_score: float = 0.005
     band_high_at: float = 0.05
     band_medium_at: float = 0.015
