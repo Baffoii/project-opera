@@ -21,3 +21,16 @@ qa-artifacts/
 3d-models/
 pinokio/ENVIRONMENT
 pinokio/.installed
+
+# OPERA: never commit uploads, local databases, virtualenvs or model weights.
+backend/.venv/
+backend/uploads/
+backend/data/
+backend/.model_cache/
+*.sqlite
+*.sqlite3
+*.db
+__pycache__/
+.pytest_cache/
+.coverage
+dist/

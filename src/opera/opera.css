@@ -1,0 +1,269 @@
+.opera-root {
+  --opera-bg: rgba(8, 16, 24, 0.94);
+  --opera-line: rgba(120, 200, 255, 0.28);
+  --opera-fg: #dbe9f4;
+  --opera-muted: #8aa2b5;
+  --opera-accent: #4cc3ff;
+  position: fixed;
+  top: 84px;
+  right: 16px;
+  bottom: 96px;
+  width: min(380px, calc(100vw - 32px));
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--opera-bg);
+  color: var(--opera-fg);
+  border: 1px solid var(--opera-line);
+  border-radius: 8px;
+  font: 13px/1.45 Inter, system-ui, sans-serif;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.opera-root[hidden],
+.opera-launcher[hidden] {
+  display: none;
+}
+.opera-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--opera-line);
+}
+.opera-title {
+  letter-spacing: 0.18em;
+  color: var(--opera-accent);
+}
+.opera-sub {
+  color: var(--opera-muted);
+  flex: 1;
+}
+.opera-body {
+  overflow-y: auto;
+  padding: 4px 12px 12px;
+  flex: 1;
+}
+.opera-section {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(120, 200, 255, 0.12);
+}
+.opera-section[hidden] {
+  display: none;
+}
+.opera-h {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--opera-muted);
+}
+.opera-footer,
+.opera-attribution,
+.opera-note,
+.opera-muted {
+  color: var(--opera-muted);
+  font-size: 11px;
+}
+.opera-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--opera-line);
+}
+.opera-drop {
+  border: 1px dashed var(--opera-line);
+  border-radius: 6px;
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.opera-drop small {
+  display: block;
+  margin-top: 4px;
+  color: var(--opera-muted);
+}
+.opera-drop:hover,
+.opera-drop:focus-visible,
+.opera-drop.is-over {
+  border-color: var(--opera-accent);
+  background: rgba(76, 195, 255, 0.08);
+  outline: none;
+}
+.opera-preview {
+  display: flex;
+  gap: 10px;
+}
+.opera-preview img {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--opera-line);
+}
+.opera-preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.opera-preview-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opera-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.opera-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 10px 0;
+}
+.opera-btn {
+  background: rgba(76, 195, 255, 0.1);
+  color: var(--opera-fg);
+  border: 1px solid var(--opera-line);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.opera-btn:hover:not(:disabled),
+.opera-btn:focus-visible {
+  border-color: var(--opera-accent);
+  outline: none;
+}
+.opera-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.opera-btn-primary {
+  width: 100%;
+  padding: 8px;
+  background: rgba(76, 195, 255, 0.22);
+}
+.opera-error {
+  color: #ff8d7a;
+  margin: 6px 0;
+}
+.opera-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.opera-badge-mock {
+  background: #ffb020;
+  color: #1b1200;
+}
+.opera-clue-group h4 {
+  margin: 8px 0 2px;
+  font-size: 12px;
+}
+.opera-clue-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.opera-clue {
+  padding: 2px 0;
+}
+.opera-clue-speculative {
+  color: var(--opera-muted);
+  font-style: italic;
+}
+.opera-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font-style: normal;
+}
+.opera-tag-observed {
+  color: #3ddc97;
+}
+.opera-tag-speculative {
+  color: #f5c542;
+  border-style: dashed;
+}
+.opera-abstain {
+  border: 1px solid #f5c542;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(245, 197, 66, 0.08);
+}
+.opera-candidates {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.opera-candidate {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+.opera-candidate.is-active {
+  border-color: var(--opera-accent);
+  background: rgba(76, 195, 255, 0.1);
+}
+.opera-rank {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: #0b1620;
+  border: 1px solid var(--opera-accent);
+}
+.opera-candidate-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opera-band {
+  font-weight: 600;
+}
+.opera-band-high {
+  color: #3ddc97;
+}
+.opera-band-medium {
+  color: #f5c542;
+}
+.opera-band-low {
+  color: #ff7a59;
+}
+.opera-launcher {
+  position: fixed;
+  top: 84px;
+  right: 16px;
+  z-index: 60;
+  padding: 6px 12px;
+  background: rgba(8, 16, 24, 0.94);
+  color: #4cc3ff;
+  border: 1px solid rgba(120, 200, 255, 0.28);
+  border-radius: 6px;
+  letter-spacing: 0.18em;
+  font: 600 12px Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+.opera-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
