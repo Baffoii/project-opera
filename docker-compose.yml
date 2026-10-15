@@ -1,0 +1,34 @@
+# UNTESTED: Docker is not installed on the machine this was written on, and the PostGIS code path
+# (backend/app/db.py ensure_postgis) has never run. The SQLite default (no compose) is the tested path.
+# Usage: copy .env.example to .env, set OPERA_API_KEY, then `docker compose up --build`.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: opera
+      POSTGRES_PASSWORD: ${OPERA_DB_PASSWORD:?set OPERA_DB_PASSWORD in .env}
+      POSTGRES_DB: opera
+    volumes:
+      - opera-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opera"]
+      interval: 5s
+      retries: 10
+  backend:
+    build:
+      context: ./backend
+      args:
+        EXTRAS: ${OPERA_EXTRAS:-postgres,eval}
+    env_file: .env
+    environment:
+      OPERA_DATABASE_URL: postgresql+psycopg://opera:${OPERA_DB_PASSWORD}@db:5432/opera
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - opera-data:/data
+volumes:
+  opera-db:
+  opera-data:
