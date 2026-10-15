@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.adapters.mock import MockGeoAdapter, UnavailableClueAdapter, UnavailableGeoAdapter
+from app.adapters.mock import MockClueAdapter, MockGeoAdapter, UnavailableClueAdapter, UnavailableGeoAdapter
 from app.config import Settings
 from app.context import AppContext
 from app.db import init_db, make_engine, make_session_factory
@@ -50,7 +50,10 @@ def make_ctx(settings: Settings, **kw) -> AppContext:
             "mock": MockGeoAdapter(),
             "geoclip-v1": UnavailableGeoAdapter("geoclip-v1", "x", "not installed"),
         },
-        clue_adapters={"vlm-clues": UnavailableClueAdapter("vlm-clues", "x", "no key")},
+        clue_adapters={
+            "vlm-clues": UnavailableClueAdapter("vlm-clues", "x", "no key"),
+            "mock-clues": MockClueAdapter(),
+        },
         limiter=TokenBucketLimiter(settings.rate_limit_per_min, settings.rate_limit_burst),
         **kw,
     )

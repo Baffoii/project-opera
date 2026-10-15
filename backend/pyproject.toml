@@ -18,9 +18,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "respx>=0.21", "pytest-timeout>=2.3"]
+dev = ["pytest>=8", "pytest-timeout>=2.3"]
 postgres = ["psycopg[binary]>=3.2"]
-geoclip = ["torch", "geoclip"]
+geoclip = ["torch", "torchvision", "transformers", "geoclip==1.2.3"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

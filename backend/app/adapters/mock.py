@@ -63,6 +63,50 @@ class UnavailableGeoAdapter:
         raise RuntimeError(f"{self.id} is unavailable: {self._reason}")
 
 
+_MOCK_CLUE_SETS = [
+    [
+        ("road", "MOCK: dashed yellow centre line", "observed"),
+        ("vegetation", "MOCK: scrub oak and grassland", "observed"),
+        ("climate", "MOCK: warm, dry-season light", "speculative"),
+    ],
+    [
+        ("architecture", "MOCK: narrow stone buildings with shutters", "observed"),
+        ("signage", "MOCK: blue street-name plates", "observed"),
+        ("language", "MOCK: Latin script with diacritics", "speculative"),
+    ],
+    [
+        ("terrain", "MOCK: snow-capped ridge behind a wide valley", "observed"),
+        ("vegetation", "MOCK: conifer forest line", "observed"),
+        ("climate", "MOCK: cold, clear alpine conditions", "speculative"),
+    ],
+]
+
+
+class MockClueAdapter:
+    """Placeholder clues used only when the real VLM is unavailable. Not derived from the image."""
+
+    id = "mock-clues"
+    version = "mock-clues-0.1"
+    kind = "mock"
+
+    def availability(self) -> tuple[bool, str | None]:
+        return True, None
+
+    def extract(self, image_bytes: bytes, *, mime: str):
+        import hashlib
+
+        from .base import ClueResult
+
+        digest = hashlib.sha256(image_bytes).digest()
+        chosen = _MOCK_CLUE_SETS[digest[0] % len(_MOCK_CLUE_SETS)]
+        return ClueResult(
+            clues=[{"category": c, "text": t, "certainty": k} for c, t, k in chosen],
+            region_guesses=["MOCK: region guess"],
+            prompt_version="mock",
+            model_name="mock",
+        )
+
+
 class UnavailableClueAdapter:
     kind = "real"
 

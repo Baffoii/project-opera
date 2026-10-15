@@ -38,17 +38,25 @@ class Settings(BaseSettings):
 
     # Models
     default_model: str = "geoclip-v1"
-    abstain_below_score: float = 0.02
-    band_high_at: float = 0.5
-    band_medium_at: float = 0.15
+    # Provisional, UNCALIBRATED thresholds on GeoCLIP's raw gallery softmax mass. Picked by eyeballing 7
+    # Commons photos in M3 (top-1 ranged 0.0045-0.056); M5 replaces them with benchmark-based values.
+    abstain_below_score: float = 0.005
+    band_high_at: float = 0.05
+    band_medium_at: float = 0.015
     vlm_enabled: bool = True
-    vlm_model: str = ""  # OPERA_VLM_MODEL; chosen by the owner from OpenAI's current docs.
+    # Default checked against OpenAI's model page on 2026-10-15 (image input + Structured Outputs).
+    # Override with OPERA_VLM_MODEL, and update the two prices below to match.
+    vlm_model: str = "gpt-6-luna"
     vlm_timeout_s: float = 30.0
     vlm_max_edge_px: int = 1024
-    # USD per 1M tokens; set from OpenAI's current pricing page. Unset (0) => cost reported as null.
-    vlm_price_input_per_mtok: float = 0.0
-    vlm_price_output_per_mtok: float = 0.0
+    # USD per 1M tokens, from the gpt-6-luna model page on 2026-10-15 (standard processing). These are
+    # estimates; change them whenever OPERA_VLM_MODEL changes. Both 0 => cost reported as null.
+    vlm_price_input_per_mtok: float = 0.1
+    vlm_price_output_per_mtok: float = 0.5
     registry_dir: Path = BACKEND_DIR / "registry"
+    model_cache_dir: Path = BACKEND_DIR / ".model_cache"  # git-ignored; model weights are never committed
+    geoclip_nms_km: float = 50.0  # candidates closer than this to a higher-ranked one are suppressed
+    geoclip_pool: int = 400  # gallery points considered before suppression
 
     # Geographic context (M4)
     context_enabled: bool = True

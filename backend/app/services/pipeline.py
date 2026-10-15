@@ -5,7 +5,7 @@ import secrets
 import time
 from datetime import timedelta
 
-from ..adapters.base import RawCandidate
+from ..adapters.base import ClueError, RawCandidate
 from ..context import AppContext
 from ..db import AnalysisRow, CandidateRow, UploadRow, session_scope, utcnow
 from ..schemas import Analysis, Candidate, Clue
@@ -97,26 +97,35 @@ def run_analysis(
         t = time.perf_counter()
         geo = adapter.predict(image.data, image_sha256=image.sha256, top_k=5)
         latency["geolocate"] = round((time.perf_counter() - t) * 1000, 2)
+        for stage, ms in geo.stages.items():
+            latency[stage] = round(ms, 2)
+        versions_extra = dict(geo.notes)
         geo_error = None
     except Exception as exc:
         log.warning("geo adapter %s failed: %s", adapter.id, type(exc).__name__)
-        geo, geo_error = None, f"{adapter.id} failed ({type(exc).__name__})."
+        geo, geo_error, versions_extra = None, f"{adapter.id} failed ({type(exc).__name__}).", {}
 
     clues: list[dict] = []
     region_guesses: list[dict] = []
     clues_kind = "none"
+    clue_abstain: str | None = None
     cost: float | None = None
     versions: dict = {
         "pipeline": PIPELINE_VERSION,
         "geo_adapter": f"{adapter.id}@{adapter.version}",
         "uncertainty": "band-heuristic-v0",
     }
+    versions.update(versions_extra)
     if use_vlm_clues:
-        clue_adapter = ctx.clue_adapters.get("vlm-clues")
-        ready, reason = clue_adapter.availability() if clue_adapter else (False, "not registered")
+        real = ctx.clue_adapters.get("vlm-clues")
+        ready, reason = real.availability() if real else (False, "not registered")
+        clue_adapter = real if ready else ctx.clue_adapters.get("mock-clues")
         if not ready:
-            notices.append(f"VLM clues unavailable: {reason}.")
-        else:
+            if clue_adapter is not None:
+                notices.append(f"VLM clues unavailable ({reason}): showing MOCK clues that are not about this image.")
+            else:
+                notices.append(f"VLM clues unavailable: {reason}.")
+        if clue_adapter is not None:
             try:
                 t = time.perf_counter()
                 result = clue_adapter.extract(image.data, mime=image.mime)
@@ -125,16 +134,21 @@ def run_analysis(
                 region_guesses = [{"region": g} for g in result.region_guesses]
                 clues_kind = clue_adapter.kind
                 cost = _cost(ctx, result.input_tokens, result.output_tokens)
-                if result.abstain:
-                    notices.append(f"Clue model abstained: {result.abstain_reason or 'no reason given'}.")
                 notices.extend(result.notices)
+                if result.abstain:
+                    clue_abstain = result.abstain_reason or "no reason given"
+                    notices.append(f"Clue model abstained: {clue_abstain}")
                 versions["clue_adapter"] = f"{clue_adapter.id}@{clue_adapter.version}"
                 versions["prompt"] = result.prompt_version
                 versions["clue_model"] = result.model_name
-                provenance.append({"provider": "openai", "role": "clues", "attribution": None})
+                if clue_adapter.kind == "real":
+                    provenance.append({"provider": "openai", "role": "clues", "attribution": None})
+                    if result.input_tokens is not None:
+                        versions["clue_tokens"] = {"input": result.input_tokens, "output": result.output_tokens}
             except Exception as exc:
                 log.warning("clue adapter failed: %s", type(exc).__name__)
-                notices.append(f"VLM clues failed ({type(exc).__name__}); geolocation continued without them.")
+                detail = str(exc) if isinstance(exc, ClueError) else type(exc).__name__
+                notices.append(f"VLM clues failed ({detail}); geolocation continued without them.")
 
     raw: list[RawCandidate] = list(geo.candidates)[:5] if geo else []
     raw.sort(key=lambda c: c.score, reverse=True)
@@ -144,6 +158,9 @@ def run_analysis(
         status, abstain_reason = "failed", geo_error
     elif not raw:
         status, abstain_reason = "abstained", "The model returned no candidates."
+    elif clue_abstain and clues_kind == "real":
+        status = "abstained"
+        abstain_reason = f"The clue model found no usable geographic content: {clue_abstain}"
     elif raw[0].score < s.abstain_below_score:
         status = "abstained"
         abstain_reason = "Top raw score is below the abstention threshold; the model is not confident enough to suggest places."

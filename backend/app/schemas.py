@@ -48,10 +48,19 @@ class Analysis(BaseModel):
     expires_at: datetime
 
 
+class VlmClue(BaseModel):
+    """Wire schema for the VLM. Deliberately constraint-free (no maxLength/defaults) so OpenAI strict
+    Structured Outputs accepts it; limits are enforced after parsing in the adapter."""
+
+    category: ClueCategory
+    text: str
+    certainty: Literal["observed", "speculative"]
+
+
 class VlmClueOutput(BaseModel):
     """Strict schema the VLM must fill (used for OpenAI Structured Outputs)."""
 
     abstain: bool
     abstain_reason: str | None
-    clues: list[Clue]
+    clues: list[VlmClue]
     region_guesses: list[str]

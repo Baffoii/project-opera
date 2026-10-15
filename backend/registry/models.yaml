@@ -12,16 +12,38 @@ models:
   - id: geoclip-v1
     role: geolocation
     kind: real
-    version: unreleased
-    license: Code license and weights license not yet read in this build.
+    version: geoclip 1.2.3 (PyPI wheel)
+    license: >-
+      Code: MIT (LICENSE file inside the geoclip 1.2.3 wheel was read, 2026-10-15).
+      Weights: shipped inside the wheel; no separate weights license was found there and none has been read.
+      CLIP backbone: openai/clip-vit-large-patch14 downloaded from Hugging Face at first run; its license was not read.
     license_status: needs_human_review
-    hardware: CPU works but is slow; GPU recommended. Requires torch.
-    notes: Pretrained image-to-GPS baseline (VicenteVivan/geo-clip). Raw scores are uncalibrated.
+    hardware: >-
+      CPU works (about 4 s model load plus about 2 s per image on the build machine, after the backbone is cached);
+      GPU is used automatically by torch if present. First run downloads about 1.7 GB into backend/.model_cache.
+    notes: >-
+      Pretrained image-to-GPS baseline (VicenteVivan/geo-clip). Scores a fixed gallery of about 100K GPS points;
+      `score` is the raw softmax mass of one gallery point, NOT a probability and not calibrated. The adapter takes the top
+      400 gallery points, drops any within 50 km of a higher-scoring one (so the five candidates are different places),
+      and returns the top five with their raw scores unchanged. Confidence bands use provisional thresholds.
   - id: vlm-clues
     role: clues
     kind: real
-    version: unreleased
+    version: vlm-clues-v1 (prompt vlm-clues-prompt-v1)
     license: OpenAI API terms of service (hosted model; no weights).
     license_status: needs_human_review
-    hardware: remote API (needs OPENAI_API_KEY)
-    notes: Extracts visible clues from the sanitized, downscaled image only. Never contributes candidate scores.
+    hardware: remote API (needs OPENAI_API_KEY in .env)
+    notes: >-
+      BUILT, NOT YET VERIFIED AGAINST THE LIVE API (no key during the build; tested against fake clients and a mocked
+      HTTP transport only). Default model gpt-6-luna chosen from OpenAI's model docs on 2026-10-15; override with
+      OPERA_VLM_MODEL. Prices (0.1 / 0.5 USD per 1M input / output tokens) come from the same docs page and live in config
+      (OPERA_VLM_PRICE_*); update them if the model changes. Sends only the sanitized image downscaled to 1024 px on the
+      long edge, with store=false. Never contributes candidate scores. Without a key the pipeline shows clearly labelled MOCK clues.
+  - id: mock-clues
+    role: clues
+    kind: mock
+    version: mock-clues-0.1
+    license: First-party test stub (repository code).
+    license_status: not_applicable
+    hardware: cpu
+    notes: Fixed placeholder clue sets prefixed "MOCK:". Not derived from the image. Shown only when the real VLM is unavailable.

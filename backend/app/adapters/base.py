@@ -6,6 +6,10 @@ from typing import Literal, Protocol
 Kind = Literal["mock", "real"]
 
 
+class ClueError(Exception):
+    """A clue adapter failure whose message is safe to show to the user (no image or key content)."""
+
+
 @dataclass
 class RawCandidate:
     lat: float
@@ -19,6 +23,8 @@ class RawCandidate:
 class GeoResult:
     candidates: list[RawCandidate]
     latency_ms: float = 0.0
+    stages: dict[str, float] = field(default_factory=dict)  # e.g. {"model_load": 61000.0}, merged into latency_ms
+    notes: dict = field(default_factory=dict)  # versioning/provenance detail stored under versions
 
 
 class GeoAdapter(Protocol):

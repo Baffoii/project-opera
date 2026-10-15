@@ -59,10 +59,12 @@ def test_mock_output_is_deterministic_per_image(client, jpeg_bytes):
     assert a == b and a != c
 
 
-def test_vlm_clues_requested_but_unavailable_is_reported_not_faked(client, jpeg_bytes):
+def test_vlm_clues_requested_but_unavailable_is_labelled_mock_never_passed_off_as_real(client, jpeg_bytes):
     body = _analyze(client, jpeg_bytes(), use_vlm_clues="true").json()
-    assert body["clues"] == [] and body["clues_kind"] == "none"
-    assert any("VLM clues unavailable" in n for n in body["notices"])
+    assert body["clues_kind"] == "mock" and body["clues"]
+    assert all(c["text"].startswith("MOCK:") for c in body["clues"])
+    assert any("VLM clues unavailable" in n and "MOCK" in n for n in body["notices"])
+    assert body["cost_estimate_usd"] is None
 
 
 def test_metadata_free_false_is_ignored_with_notice(client, jpeg_bytes):
@@ -143,7 +145,7 @@ def test_band_thresholds_and_abstention(tmp_path, jpeg_bytes):
             return True, None
 
         def predict(self, image_bytes, *, image_sha256, top_k=5):
-            return GeoResult([RawCandidate(1.0, 2.0, 0.005), RawCandidate(3.0, 4.0, 0.001)])
+            return GeoResult([RawCandidate(1.0, 2.0, 0.003), RawCandidate(3.0, 4.0, 0.001)])
 
     s = make_settings(tmp_path)
     c = make_ctx(s)
