@@ -1,15 +1,14 @@
 # OPERA V1 progress
 
 ## Morning Summary
-_(Work in progress: M0-M4 done. This block is rewritten at the end of the session.)_
-
-- Status: M0, M1, M2, M3, M4 DONE; M5 (benchmark, calibration, docs, compose) pending.
-- Real now: `geoclip-v1` runs GeoCLIP locally on CPU through the full UI (a Lisbon photo with no EXIF returned Lisbon as rank 1, `model_kind: "real"`, about 10 s on first request incl. model load). Scores are raw, uncalibrated; thresholds are provisional.
-- Mocked: with no `OPENAI_API_KEY`, clues are labelled `MOCK` (`clues_kind: "mock"`). The VLM adapter is **built, not yet verified against the live API** (tested with fake clients and a mocked HTTP transport only).
-- Place names: candidates are labelled via OSM Nominatim (rounded coordinates only, cached, rate-limited, fails soft to coordinates). Set `OPERA_CONTEXT_USER_AGENT` to a real app name + contact before non-local use; never tested against the public service.
-- Needs a human: licenses for GeoCLIP weights and the CLIP backbone (`needs_human_review` in `backend/registry/models.yaml`); PostGIS path and Google 3D tiles untested.
-- Run backend: `cd backend && OPERA_API_KEY=<choose> .venv/bin/uvicorn --factory app.main:create_app --port 8000`; tests: `cd backend && .venv/bin/pytest`; frontend tests: `npx vitest run`.
-- Run UI against it: `VITE_OPERA_API_KEY=<same> VITE_OPERA_API_URL=http://127.0.0.1:8000 npm run dev` (open the OPERA panel, Developer view shows the model selector and latency). `VITE_OPERA_MOCK=1` runs the UI with no backend.
+- Status: M0-M5 DONE. All gates run and green: backend pytest 131 passed; Vitest 59 passed; upstream `npm test` 6533 pass / 0 fail; `check:boundaries`; `format:check`; browser E2E (mock, benchmark mock, benchmark real, analyze real).
+- Real now: photo -> GeoCLIP (local, CPU, `model_kind: "real"`) -> 5 candidates on the globe; GeoGuessr-style benchmark mode; repeatable evaluation runs (same hash via CLI and API) on 59 Commons photos with leakage checks.
+- Mocked: no `OPENAI_API_KEY`, so clues are labelled `MOCK`; the VLM adapter is built but never run against the live API. Docker/compose and the PostGIS path are written but untested (no Docker here).
+- Honest numbers (docs/BENCHMARK_RESULTS.md): heldout median 103 km, 55% within 200 km, n=29; seed median 1.4 km (likely training overlap). Tiny sample, not an accuracy claim.
+- Calibration was attempted and NOT adopted (degenerate on 30 seed photos, D44); thresholds stay provisional and every candidate is `uncalibrated`.
+- Needs a human: licence sign-off (GeoCLIP weights, CLIP backbone, OSV-5M, Overture, each Commons image, reverse_geocoder/GeoNames); set `OPERA_CONTEXT_USER_AGENT` (real contact) before non-local use; a bigger, harder seed set for real calibration; any hosting or paid service.
+- Not re-run this session: Nominatim-stub E2E (local listeners other than uvicorn would not accept connections); it passed in M4 and unit tests cover the provider.
+- Run: `make test`; backend/frontend commands in README "Running OPERA". Images: `python scripts/fetch_benchmark.py opera-commons-v1`.
 - Go live with the VLM: add `OPENAI_API_KEY` to `.env` -> restart backend -> run `python scripts/smoke_vlm.py`.
 
 ---
@@ -93,3 +92,21 @@ Globe check: headless Chrome loaded `http://localhost:4174/`, 8 canvases present
 - Not built: country/admin boundary overlay, Overture provider (both optional; D34).
 - ODbL share-alike obligations for stored results were not analysed; recorded as `needs_human_review`.
 **Remaining work:** M5.
+
+## M5 - Benchmark mode + research release - DONE (calibration not adopted; Docker untested)
+**Changed files:** backend `app/eval/{metrics,dataset,country,runner,synthetic,calibration,cli}.py`, `app/services/evaluations.py`, `app/routes/{evaluations,benchmark}.py`, edits to `main.py` (`build_context`), `context.py`, `config.py`, `services/pipeline.py` (shared `decide_status`); tests `test_eval_core`, `test_evaluations_api`, `test_eval_calibration`, `test_benchmark_api`, `test_privacy_checklist`; `fixtures/benchmark/opera-synthetic-v1` (committed) and `opera-commons-v1/manifest.csv` (images git-ignored); `scripts/{fetch_benchmark,make_synthetic_benchmark,export_openapi}.py`; `registry/datasets.yaml`. Frontend `src/opera/benchmark/*`, `globe/benchmark*.js`, `ui/benchmarkPanel.js`, mode tabs in `app.js`, client/mock/store/dev panel additions, `opera.css` (z-index 111); `tests/opera/benchmark.spec.js`, `tests/opera/e2e/benchmark-ui.mjs`. Docs/infra: `docs/{API,PRIVACY,BENCHMARK_RESULTS,DECISIONS(D35-D45)}.md`, `docs/openapi.json`, README "Running OPERA", `backend/Dockerfile`, `docker-compose.yml`, `Makefile`, `.env.example`, `.gitignore`.
+**Commands run:** `backend/.venv/bin/pytest`; `npx vitest run`; `npm test`; `npm run check:boundaries`; `npm run format:check`; `python -m app.eval.cli run|calibrate ...` (GeoCLIP, CPU); `POST /api/v1/evaluations` against a live backend; E2E: `mock-ui.mjs` and `benchmark-ui.mjs` on mock vite (:4180), `benchmark-ui.mjs real` and `real-ui.mjs` against the real backend (:8000, vite :4181); `scripts/fetch_benchmark.py` (re-downloaded one image, byte-identical). All servers I started were stopped; logs in `/tmp/opera-e2e`.
+**Test evidence:**
+- pytest `131 passed`. Covers metrics (haversine pairs, percentiles, thresholds, reliability, slices), dataset loading/validation, leakage (exact + near-duplicate fails the run), evaluation API lifecycle and error codes, reproducibility hash, calibration rule, benchmark endpoints (no truth in rounds), privacy checklist statics (no face libraries, VLM prompt ignores people, no secrets in `.env.example`, uploads/weights/images ignored).
+- Vitest `59 passed`; `npm test` main suite `6533 pass / 0 fail` (+1 and 13/13 suites); `check:boundaries` passed; `format:check` Checked 1359 files.
+- Browser: `mock-ui.mjs` 12/12; `benchmark-ui.mjs` mock 14/14, real (GeoCLIP, opera-commons-v1) 13/13 on 3 of 4 runs (see below); `real-ui.mjs` (no stub) all PASS, real GeoCLIP, about 12 s incl. model load.
+- Evaluation: heldout `reproducible_hash` `0376af0d3dda...` identical across two CLI runs and one API run (config hash identical too). Numbers and caveats: `docs/BENCHMARK_RESULTS.md`.
+**Mocked / stubbed:** Benchmark UI in mock mode uses labelled fixtures. The synthetic dataset only tests plumbing. No VLM clues in any evaluation (no key). Place names disabled for the real E2E runs.
+**Blockers:** none that stopped work. Listening sockets other than uvicorn would not accept connections in this shell (Nominatim stub, `http.server`), so the M4 stub E2E was not repeated.
+**Known issues / honesty notes:**
+- A regression I introduced was caught by the existing `mock-ui.mjs`: the mode tabs pushed the Analyze button under an upstream right-rail panel (z-index 110). Fixed with `z-index: 111` on the OPERA panel (D35); the test was not changed.
+- One of four real-mode `benchmark-ui.mjs` runs (the first, on a freshly started dev server) timed out waiting for the first image: the backend log showed the CORS preflight but no GET. The other three passed (one on the synthetic set twice, one on opera-commons-v1); cause not proven.
+- Calibration: see D44. Provisional thresholds remain; `uncertainty_km` is still the per-band heuristic.
+- Commons licences were read from API metadata by a script, not by a human; geotags may mark the subject, not the camera; GeoCLIP training overlap cannot be ruled out.
+- `docker-compose.yml`, `backend/Dockerfile` and PostGIS are unrun. No automatic face/plate blurring (optional in the spec, not built).
+**Remaining work:** none for V1 scope. Owner items: see Morning Summary.
