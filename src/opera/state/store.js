@@ -1,3 +1,5 @@
+import { initialBenchmarkState } from '../benchmark/session.js';
+
 /** Minimal pub/sub store. `set` shallow-merges and notifies only on real change. */
 export function createStore(initial = {}) {
   let state = Object.freeze({ ...initial });
@@ -37,6 +39,7 @@ export const initialOperaState = Object.freeze({
   modelsError: null,
   roundTripMs: null,
   panelOpen: true,
+  benchmark: initialBenchmarkState,
 });
 
 export function createOperaStore(overrides = {}) {

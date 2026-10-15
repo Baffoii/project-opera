@@ -302,3 +302,52 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.opera-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+.opera-tab {
+  flex: 1;
+}
+.opera-tab[aria-selected='true'] {
+  border-color: var(--opera-accent);
+  color: var(--opera-accent);
+}
+.opera-mode-analyze[hidden],
+.opera-mode-benchmark[hidden] {
+  display: none;
+}
+.opera-bench-image {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  border: 1px solid var(--opera-line);
+  margin: 6px 0;
+}
+.opera-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--opera-fg);
+  border: 1px solid var(--opera-line);
+  padding: 4px 6px;
+}
+.opera-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.opera-table th,
+.opera-table td {
+  text-align: left;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--opera-line);
+}
+.opera-bench-candidates,
+.opera-registry {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--opera-muted);
+}

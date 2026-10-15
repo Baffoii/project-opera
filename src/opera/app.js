@@ -6,6 +6,15 @@ import { mountUploadPanel } from './ui/uploadPanel.js';
 import { mountCluesPanel } from './ui/cluesPanel.js';
 import { mountCandidatesPanel } from './ui/candidatesPanel.js';
 import { mountDevPanel } from './ui/devPanel.js';
+import { mountBenchmarkPanel } from './ui/benchmarkPanel.js';
+
+const NO_BENCHMARK_OVERLAYS = Object.freeze({
+  enablePicking() {},
+  disablePicking() {},
+  setGuess() {},
+  showReveal() {},
+  clear() {},
+});
 
 /**
  * Mount OPERA beside the upstream globe. The viewer is only used through the
@@ -13,6 +22,7 @@ import { mountDevPanel } from './ui/devPanel.js';
  */
 export function mountOpera({
   overlays,
+  benchmarkOverlays = NO_BENCHMARK_OVERLAYS,
   config = readOperaConfig(),
   client = createOperaClient({ config }),
   store = createOperaStore(),
@@ -58,6 +68,30 @@ export function mountOpera({
     { class: 'opera-footer' },
     'Use only photos of public or consented places. Basemap and layer attribution: see "Data attribution" at the bottom-left of the globe.',
   );
+  const tabs = h(
+    'div',
+    { class: 'opera-tabs', role: 'tablist', 'aria-label': 'OPERA mode' },
+    ...[
+      ['analyze', 'Analyze photo'],
+      ['benchmark', 'Benchmark game'],
+    ].map(([mode, label]) =>
+      h(
+        'button',
+        {
+          type: 'button',
+          role: 'tab',
+          class: 'opera-btn opera-tab',
+          dataset: { mode },
+          onclick: () => store.set({ mode }),
+        },
+        label,
+      ),
+    ),
+  );
+  const analyzeBody = h('div', { class: 'opera-mode-analyze' });
+  const benchmarkBody = h('div', { class: 'opera-mode-benchmark' });
+  const sharedBody = h('div', { class: 'opera-mode-shared' });
+  body.append(tabs, analyzeBody, benchmarkBody, sharedBody);
   root.append(header, body, footer);
   host.append(root, launcher);
 
@@ -104,23 +138,47 @@ export function mountOpera({
   }
 
   const panels = [
-    mountUploadPanel(body, {
+    mountUploadPanel(analyzeBody, {
       store,
       maxBytes: config.maxUploadBytes,
       onAnalyze: analyze,
       onRemove: discard,
     }),
-    mountCluesPanel(body, { store }),
-    mountCandidatesPanel(body, { store, onFlyTo: (c) => overlays.flyTo(c) }),
-    mountDevPanel(body, {
+    mountCluesPanel(analyzeBody, { store }),
+    mountCandidatesPanel(analyzeBody, {
+      store,
+      onFlyTo: (c) => overlays.flyTo(c),
+    }),
+    mountBenchmarkPanel(benchmarkBody, {
+      store,
+      client,
+      overlays: benchmarkOverlays,
+    }),
+    mountDevPanel(sharedBody, {
       store,
       mock: client.mock,
       loadModels: () => client.listModels(),
+      loadDatasets: () => client.listDatasets(),
     }),
   ];
 
+  const applyMode = (state) => {
+    analyzeBody.hidden = state.mode !== 'analyze';
+    benchmarkBody.hidden = state.mode !== 'benchmark';
+    for (const tab of tabs.children)
+      tab.setAttribute(
+        'aria-selected',
+        String(tab.dataset.mode === state.mode),
+      );
+    // Only one mode's markers are on the globe at a time.
+    overlays.setCandidates(
+      state.mode === 'analyze' ? (state.analysis?.candidates ?? []) : [],
+    );
+  };
+
   const unsubscribe = store.subscribe((state, _prev, changed) => {
-    if (changed.includes('analysis')) {
+    if (changed.includes('mode')) applyMode(state);
+    if (changed.includes('analysis') && state.mode === 'analyze') {
       overlays.setCandidates(state.analysis?.candidates ?? []);
       overlays.setAttributions(
         (state.analysis?.provenance ?? [])
@@ -136,6 +194,7 @@ export function mountOpera({
     }
   });
   launcher.hidden = true;
+  applyMode(store.get());
 
   return {
     store,
@@ -145,6 +204,7 @@ export function mountOpera({
       abortController?.abort();
       for (const panel of panels) panel.destroy();
       overlays.clear();
+      benchmarkOverlays.clear();
       root.remove();
       launcher.remove();
     },

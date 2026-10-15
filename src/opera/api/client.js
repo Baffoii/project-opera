@@ -1,5 +1,12 @@
 import { readOperaConfig } from '../config.js';
-import { buildMockAnalysis, hashBytes } from './mockFixtures.js';
+import {
+  buildMockAnalysis,
+  buildMockPlay,
+  hashBytes,
+  mockBenchmarkDatasets,
+  mockBenchmarkRounds,
+} from './mockFixtures.js';
+import { gameScore, haversineKm } from '../benchmark/geo.js';
 
 export class OperaApiError extends Error {
   constructor(message, { status = 0, detail = null } = {}) {
@@ -115,6 +122,65 @@ export function createOperaClient({
       }
       return request(`/api/v1/analyses/${encodeURIComponent(id)}`, {
         method: 'DELETE',
+      });
+    },
+
+    listBenchmarkDatasets: () =>
+      config.mock
+        ? Promise.resolve(mockBenchmarkDatasets())
+        : request('/api/v1/benchmark/datasets'),
+
+    async benchmarkRounds({ dataset, split = 'heldout', n = 5, seed = 0 }) {
+      if (config.mock) return mockBenchmarkRounds({ n });
+      const query = new URLSearchParams({
+        dataset,
+        split,
+        n: String(n),
+        seed: String(seed),
+      });
+      return request(`/api/v1/benchmark/rounds?${query}`);
+    },
+
+    /** Resolves to an object URL (or data URL in mock mode); the caller revokes it with `revokeImage`. */
+    async benchmarkImage(imageUrl, { signal } = {}) {
+      if (config.mock) return imageUrl;
+      let response;
+      try {
+        response = await fetchImpl(`${config.apiUrl}${imageUrl}`, {
+          signal,
+          headers: { 'X-OPERA-Key': config.apiKey },
+        });
+      } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+        throw new OperaApiError('Could not load the benchmark image.');
+      }
+      if (!response.ok)
+        throw new OperaApiError(
+          `Could not load the benchmark image (${response.status}).`,
+          { status: response.status },
+        );
+      return URL.createObjectURL(await response.blob());
+    },
+    revokeImage(url) {
+      if (typeof url === 'string' && url.startsWith('blob:'))
+        URL.revokeObjectURL(url);
+    },
+
+    async benchmarkPlay({ dataset, imageId, model, guess }, { signal } = {}) {
+      if (config.mock) {
+        await delay(mockDelayMs);
+        return buildMockPlay({ imageId, guess, haversineKm, gameScore });
+      }
+      return request('/api/v1/benchmark/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset,
+          image_id: imageId,
+          model,
+          guess: guess ?? null,
+        }),
+        signal,
       });
     },
 

@@ -1,5 +1,6 @@
 import './opera.css';
 import { createCandidateOverlays } from './globe/candidateOverlays.js';
+import { createBenchmarkOverlays } from './globe/benchmarkOverlays.js';
 import { mountOpera } from './app.js';
 
 const POLL_MS = 250;
@@ -23,7 +24,10 @@ function whenViewerReady() {
 whenViewerReady()
   .then(({ viewer, requestRender }) => {
     const overlays = createCandidateOverlays(viewer, { requestRender });
-    const opera = mountOpera({ overlays });
+    const benchmarkOverlays = createBenchmarkOverlays(viewer, {
+      requestRender,
+    });
+    const opera = mountOpera({ overlays, benchmarkOverlays });
     window.__opera = opera;
   })
   .catch((error) => console.warn(error.message));

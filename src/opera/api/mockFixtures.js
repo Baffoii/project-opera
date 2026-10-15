@@ -171,3 +171,110 @@ export function buildMockAnalysis({ seed, name = '', now = new Date() }) {
     }),
   };
 }
+
+// Benchmark mode fixtures. The "images" are labelled placeholders and the truth locations are arbitrary:
+// none of this depicts or measures anything. It exists so the UI can be exercised without a backend.
+const MOCK_ROUNDS = [
+  { id: 'mock-r1', lat: 48.8566, lon: 2.3522, country: 'FR' },
+  { id: 'mock-r2', lat: -33.8688, lon: 151.2093, country: 'AU' },
+  { id: 'mock-r3', lat: 35.6762, lon: 139.6503, country: 'JP' },
+  { id: 'mock-r4', lat: -1.2921, lon: 36.8219, country: 'KE' },
+  { id: 'mock-r5', lat: 40.7128, lon: -74.006, country: 'US' },
+];
+
+export function mockBenchmarkDatasets() {
+  return [
+    {
+      id: 'mock-benchmark',
+      version: 'mock',
+      available: true,
+      image_source_types: ['synthetic'],
+      splits: {
+        seed: { items: 3, images_present: 3 },
+        heldout: { items: 5, images_present: 5 },
+      },
+    },
+  ];
+}
+
+export function mockPlaceholderImage(index) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"><rect width="640" height="400" fill="#24384a"/><text x="320" y="190" fill="#8aa2b5" font-family="sans-serif" font-size="28" text-anchor="middle">MOCK IMAGE ${index + 1}</text><text x="320" y="230" fill="#8aa2b5" font-family="sans-serif" font-size="16" text-anchor="middle">placeholder, not a photograph</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+export function mockBenchmarkRounds({ n = 5 } = {}) {
+  return {
+    dataset: 'mock-benchmark',
+    dataset_version: 'mock',
+    split: 'heldout',
+    seed: 0,
+    rounds: MOCK_ROUNDS.slice(0, n).map((r, index) => ({
+      image_id: r.id,
+      image_url: mockPlaceholderImage(index),
+    })),
+  };
+}
+
+export function buildMockPlay({ imageId, guess, haversineKm, gameScore }) {
+  const index = Math.max(
+    0,
+    MOCK_ROUNDS.findIndex((r) => r.id === imageId),
+  );
+  const truth = MOCK_ROUNDS[index];
+  const order = seededOrder(index + 7, MOCK_PLACES.length).slice(0, 5);
+  const candidates = order.map((placeIndex, i) => {
+    const p = MOCK_PLACES[placeIndex];
+    return {
+      rank: i + 1,
+      lat: p.lat,
+      lon: p.lon,
+      score: Number((0.8 - i * 0.12).toFixed(2)),
+      confidence_band: BANDS[i],
+      uncalibrated: true,
+      error_km: Number(
+        haversineKm(truth.lat, truth.lon, p.lat, p.lon).toFixed(1),
+      ),
+    };
+  });
+  const abstained = index === 4;
+  const userError = guess
+    ? Number(haversineKm(truth.lat, truth.lon, guess.lat, guess.lon).toFixed(1))
+    : null;
+  return {
+    dataset: 'mock-benchmark',
+    dataset_version: 'mock',
+    image_id: truth.id,
+    truth: {
+      lat: truth.lat,
+      lon: truth.lon,
+      country: truth.country,
+      continent: null,
+      settlement_type: 'synthetic',
+      landscape: 'synthetic',
+      image_source_type: 'synthetic',
+    },
+    attribution: {
+      license: 'none (MOCK placeholder)',
+      author: 'OPERA mock fixtures',
+      source_url: null,
+      license_status: 'needs_human_review',
+    },
+    user: guess
+      ? { guess, error_km: userError, score: gameScore(userError) }
+      : null,
+    model: {
+      id: 'mock',
+      version: 'mock-v1',
+      kind: 'mock',
+      status: abstained ? 'abstained' : 'complete',
+      reason: abstained ? 'MOCK: model abstained on this round.' : null,
+      abstained,
+      candidates,
+      top1_error_km: candidates[0].error_km,
+      score: abstained ? null : gameScore(candidates[0].error_km),
+      latency_ms: 0,
+    },
+    score_note:
+      'Game score = 5000*exp(-km/1492.7). It is a game score, not a model metric.',
+  };
+}

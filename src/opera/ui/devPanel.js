@@ -57,21 +57,63 @@ export function summarizeRun(analysis, roundTripMs) {
   return rows;
 }
 
+/** Rows for the last benchmark round (model identity, versions, latency), shown as the backend reported them. */
+export function summarizeBenchmarkPlay(result) {
+  if (!result) return [];
+  const m = result.model ?? {};
+  const rows = [
+    ['Benchmark dataset', `${result.dataset}@${result.dataset_version}`],
+    ['Benchmark model', `${m.kind} (${m.id}@${m.version})`],
+    ['Benchmark model status', m.status ?? 'unknown'],
+  ];
+  if (m.latency_ms != null)
+    rows.push([
+      'Latency: model (excl. load)',
+      `${Math.round(m.latency_ms)} ms`,
+    ]);
+  return rows;
+}
+
+/** One line per source in the registry; rights stay `unknown` until a human reviews the licence. */
+export function summarizeRegistry(datasets = []) {
+  return datasets.map((d) => ({
+    id: d.id,
+    status: d.status ?? 'unknown',
+    licenseStatus: d.license_status ?? 'needs_human_review',
+    rights: d.rights ?? {},
+  }));
+}
+
 /**
  * Developer view: choose the geolocation model, toggle VLM clues, inspect the last request.
  * `loadModels` resolves to the backend model list; in frontend-mock mode it is skipped.
  */
-export function mountDevPanel(container, { store, loadModels, mock }) {
+export function mountDevPanel(
+  container,
+  { store, loadModels, loadDatasets, mock },
+) {
   const root = h('section', {
     class: 'opera-section opera-dev',
     'aria-label': 'Developer view',
   });
   container.append(root);
   let disposed = false;
+  let registry = null;
 
   async function refresh() {
     if (mock) return;
     try {
+      if (loadDatasets && registry === null) {
+        registry = [];
+        loadDatasets()
+          .then((list) => {
+            registry = summarizeRegistry(list);
+            if (!disposed) render();
+          })
+          .catch(() => {
+            registry = [];
+          });
+      }
       const models = await loadModels();
       if (disposed) return;
       const model = pickModel(geoModelOptions(models), store.get().model);
@@ -91,6 +133,7 @@ export function mountDevPanel(container, { store, loadModels, mock }) {
       useVlmClues,
       analysis,
       roundTripMs,
+      benchmark,
     } = store.get();
     clear(root);
     root.append(
@@ -178,7 +221,21 @@ export function mountDevPanel(container, { store, loadModels, mock }) {
         );
     }
 
-    const rows = summarizeRun(analysis, roundTripMs);
+    const rows = [
+      ...summarizeRun(analysis, roundTripMs),
+      ...summarizeBenchmarkPlay(benchmark?.result),
+    ];
+    if (registry?.length)
+      root.append(
+        h('h4', { class: 'opera-h' }, 'Source registry'),
+        h(
+          'ul',
+          { class: 'opera-registry' },
+          registry.map((d) =>
+            h('li', {}, `${d.id}: ${d.status}, licence ${d.licenseStatus}`),
+          ),
+        ),
+      );
     if (rows.length)
       root.append(
         h('h4', { class: 'opera-h' }, 'Last request'),
@@ -191,8 +248,12 @@ export function mountDevPanel(container, { store, loadModels, mock }) {
   }
 
   render();
-  const unsubscribe = store.subscribe((_s, _p, changed) => {
+  const unsubscribe = store.subscribe((state, prev, changed) => {
+    const benchmarkChanged =
+      changed.includes('benchmark') &&
+      state.benchmark?.result !== prev.benchmark?.result;
     if (
+      benchmarkChanged ||
       changed.some((k) =>
         [
           'devViewOpen',
