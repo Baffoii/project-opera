@@ -27,6 +27,24 @@ def band_for(score: float, high_at: float, medium_at: float) -> str:
     return "low"
 
 
+def decide_status(
+    raw: list[RawCandidate], *, geo_error: str | None, clue_abstain: str | None, abstain_below: float
+) -> tuple[str, str | None]:
+    """The single abstention rule, shared by live analyses and evaluation runs. Candidates sorted best first."""
+    if geo_error:
+        return "failed", geo_error
+    if not raw:
+        return "abstained", "The model returned no candidates."
+    if clue_abstain:  # callers pass this only for real (non-mock) clues
+        return "abstained", f"The clue model found no usable geographic content: {clue_abstain}"
+    if raw[0].score < abstain_below:
+        return (
+            "abstained",
+            "Top raw score is below the abstention threshold; the model is not confident enough to suggest places.",
+        )
+    return "complete", None
+
+
 def analysis_from_row(row: AnalysisRow) -> Analysis:
     return Analysis(
         id=row.id,
@@ -62,7 +80,7 @@ def analysis_from_row(row: AnalysisRow) -> Analysis:
     )
 
 
-def _cost(ctx: AppContext, input_tokens: int | None, output_tokens: int | None) -> float | None:
+def estimate_vlm_cost(ctx: AppContext, input_tokens: int | None, output_tokens: int | None) -> float | None:
     s = ctx.settings
     if input_tokens is None or output_tokens is None:
         return None
@@ -178,7 +196,7 @@ def run_analysis(
                 clues = result.clues
                 region_guesses = [{"region": g} for g in result.region_guesses]
                 clues_kind = clue_adapter.kind
-                cost = _cost(ctx, result.input_tokens, result.output_tokens)
+                cost = estimate_vlm_cost(ctx, result.input_tokens, result.output_tokens)
                 notices.extend(result.notices)
                 if result.abstain:
                     clue_abstain = result.abstain_reason or "no reason given"
@@ -197,18 +215,12 @@ def run_analysis(
 
     raw: list[RawCandidate] = list(geo.candidates)[:5] if geo else []
     raw.sort(key=lambda c: c.score, reverse=True)
-    status = "complete"
-    abstain_reason: str | None = None
-    if geo_error:
-        status, abstain_reason = "failed", geo_error
-    elif not raw:
-        status, abstain_reason = "abstained", "The model returned no candidates."
-    elif clue_abstain and clues_kind == "real":
-        status = "abstained"
-        abstain_reason = f"The clue model found no usable geographic content: {clue_abstain}"
-    elif raw[0].score < s.abstain_below_score:
-        status = "abstained"
-        abstain_reason = "Top raw score is below the abstention threshold; the model is not confident enough to suggest places."
+    status, abstain_reason = decide_status(
+        raw,
+        geo_error=geo_error,
+        clue_abstain=clue_abstain if clues_kind == "real" else None,
+        abstain_below=s.abstain_below_score,
+    )
 
     contexts: list[dict | None] = [None] * len(raw)
     if status == "complete" and adapter.kind != "mock":  # mock candidates carry their own labels

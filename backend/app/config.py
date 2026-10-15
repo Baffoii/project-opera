@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     vlm_price_input_per_mtok: float = 0.1
     vlm_price_output_per_mtok: float = 0.5
     registry_dir: Path = BACKEND_DIR / "registry"
+    benchmark_dir: Path = BACKEND_DIR / "fixtures" / "benchmark"  # <dataset_id>/{manifest.csv,images/}
     model_cache_dir: Path = BACKEND_DIR / ".model_cache"  # git-ignored; model weights are never committed
     geoclip_nms_km: float = 50.0  # candidates closer than this to a higher-ranked one are suppressed
     geoclip_pool: int = 400  # gallery points considered before suppression

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
@@ -22,3 +23,7 @@ class AppContext:
     clue_adapters: dict[str, ClueAdapter]
     limiter: TokenBucketLimiter
     context_provider: ContextProvider | None = None
+    # One worker: evaluations are long, model-bound jobs and must not run concurrently on one machine.
+    eval_executor: ThreadPoolExecutor = field(
+        default_factory=lambda: ThreadPoolExecutor(max_workers=1, thread_name_prefix="opera-eval")
+    )

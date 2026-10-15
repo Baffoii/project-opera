@@ -16,9 +16,10 @@ from .config import Settings, get_settings
 from .context import AppContext
 from .geo.context_provider import NominatimProvider
 from .db import init_db, make_engine, make_session_factory
-from .routes import analyze, health
+from .routes import analyze, evaluations, health
 from .routes import registry as registry_routes
 from .services import audit
+from .services.evaluations import fail_interrupted
 from .services.ratelimit import TokenBucketLimiter
 from .services.storage import LocalStorage
 from .services.sweeper import sweep_expired, sweep_loop
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None, ctx: AppContext | None = None) 
         if not settings.api_key:
             log.warning("OPERA_API_KEY is not set: every non-health route will answer 503.")
         await asyncio.to_thread(sweep_expired, ctx)
+        await asyncio.to_thread(fail_interrupted, ctx)
         task = asyncio.create_task(sweep_loop(ctx))
         try:
             yield
@@ -59,6 +61,7 @@ def create_app(settings: Settings | None = None, ctx: AppContext | None = None) 
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+            ctx.eval_executor.shutdown(wait=False, cancel_futures=True)
             close = getattr(ctx.context_provider, "close", None)
             if close:
                 close()
@@ -111,4 +114,5 @@ def create_app(settings: Settings | None = None, ctx: AppContext | None = None) 
     app.include_router(health.router)
     app.include_router(analyze.router)
     app.include_router(registry_routes.router)
+    app.include_router(evaluations.router)
     return app

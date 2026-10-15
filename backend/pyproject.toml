@@ -20,6 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-timeout>=2.3"]
 postgres = ["psycopg[binary]>=3.2"]
+eval = ["reverse_geocoder>=1.5"]  # offline country lookup for evaluation metrics
 geoclip = ["torch", "torchvision", "transformers", "geoclip==1.2.3"]
 
 [tool.setuptools.packages.find]
