@@ -16,7 +16,7 @@ from .config import Settings, get_settings
 from .context import AppContext
 from .geo.context_provider import NominatimProvider
 from .db import init_db, make_engine, make_session_factory
-from .routes import analyze, evaluations, health
+from .routes import analyze, benchmark, evaluations, health
 from .routes import registry as registry_routes
 from .services import audit
 from .services.evaluations import fail_interrupted
@@ -119,4 +119,5 @@ def create_app(settings: Settings | None = None, ctx: AppContext | None = None) 
     app.include_router(analyze.router)
     app.include_router(registry_routes.router)
     app.include_router(evaluations.router)
+    app.include_router(benchmark.router)
     return app
