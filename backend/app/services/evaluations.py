@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -133,6 +134,25 @@ def _store_item(ctx: AppContext, evaluation_id: str, result: ItemResult) -> None
         )
 
 
+def evaluate_plan(ctx: AppContext, plan: _Plan, on_item: Callable[[ItemResult], None] | None = None) -> list[ItemResult]:
+    adapter = ctx.geo_adapters[plan.model_id]
+    results: list[ItemResult] = []
+    for item in plan.items:
+        result = evaluate_item(
+            ctx.settings,
+            plan.dataset,
+            item,
+            adapter,
+            clue_adapter=plan.clue_adapter,
+            resolver=plan.resolver,
+            price=lambda i, o: estimate_vlm_cost(ctx, i, o),
+        )
+        results.append(result)
+        if on_item:
+            on_item(result)
+    return results
+
+
 def run_evaluation(ctx: AppContext, evaluation_id: str, plan: _Plan) -> None:
     try:
         with session_scope(ctx.session_factory) as session:
@@ -145,20 +165,7 @@ def run_evaluation(ctx: AppContext, evaluation_id: str, plan: _Plan) -> None:
         except LeakageError as exc:
             _finish(ctx, evaluation_id, status="failed", error=str(exc)[:500])
             return
-        adapter = ctx.geo_adapters[plan.model_id]
-        results: list[ItemResult] = []
-        for item in plan.items:
-            result = evaluate_item(
-                ctx.settings,
-                plan.dataset,
-                item,
-                adapter,
-                clue_adapter=plan.clue_adapter,
-                resolver=plan.resolver,
-                price=lambda i, o: estimate_vlm_cost(ctx, i, o),
-            )
-            results.append(result)
-            _store_item(ctx, evaluation_id, result)
+        results = evaluate_plan(ctx, plan, on_item=lambda r: _store_item(ctx, evaluation_id, r))
         outcome = compute_outcome(results, plan.notices)
         _finish(ctx, evaluation_id, status="complete", metrics=outcome.metrics, slices=outcome.slices)
     except DatasetError as exc:

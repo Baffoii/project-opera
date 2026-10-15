@@ -28,25 +28,29 @@ log = logging.getLogger("opera")
 MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 
+def build_context(settings: Settings) -> AppContext:
+    if settings.database_url.startswith("sqlite:///") and ":memory:" not in settings.database_url:
+        from pathlib import Path
+
+        Path(settings.database_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+    engine = make_engine(settings.database_url)
+    init_db(engine)
+    return AppContext(
+        settings=settings,
+        engine=engine,
+        session_factory=make_session_factory(engine),
+        storage=LocalStorage(settings.storage_dir),
+        geo_adapters=build_geo_adapters(settings),
+        clue_adapters=build_clue_adapters(settings),
+        limiter=TokenBucketLimiter(settings.rate_limit_per_min, settings.rate_limit_burst),
+        context_provider=NominatimProvider(settings) if settings.context_enabled else None,
+    )
+
+
 def create_app(settings: Settings | None = None, ctx: AppContext | None = None) -> FastAPI:
     settings = settings or get_settings()
     if ctx is None:
-        if settings.database_url.startswith("sqlite:///") and ":memory:" not in settings.database_url:
-            from pathlib import Path
-
-            Path(settings.database_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-        engine = make_engine(settings.database_url)
-        init_db(engine)
-        ctx = AppContext(
-            settings=settings,
-            engine=engine,
-            session_factory=make_session_factory(engine),
-            storage=LocalStorage(settings.storage_dir),
-            geo_adapters=build_geo_adapters(settings),
-            clue_adapters=build_clue_adapters(settings),
-            limiter=TokenBucketLimiter(settings.rate_limit_per_min, settings.rate_limit_burst),
-            context_provider=NominatimProvider(settings) if settings.context_enabled else None,
-        )
+        ctx = build_context(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
