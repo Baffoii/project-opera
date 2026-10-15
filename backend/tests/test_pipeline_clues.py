@@ -124,6 +124,9 @@ def test_geo_stages_and_notes_are_merged_into_latency_and_versions(tmp_path, jpe
     with _client(tmp_path) as client:
         body = _post(client, jpeg_bytes(), model="staged", use_vlm_clues="false")
     assert body["latency_ms"]["model_infer"] == 12.5 and body["latency_ms"]["model_load"] == 3000.0
+    lat = body["latency_ms"]
+    top_level = sum(v for k, v in lat.items() if k not in ("total", "model_infer", "model_load"))
+    assert abs(lat["total"] - top_level) < 0.05  # sub-stages are not double-counted
     assert body["versions"]["nms_km"] == 50.0
     assert body["clues_kind"] == "none"
 

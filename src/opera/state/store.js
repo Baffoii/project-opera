@@ -31,6 +31,11 @@ export const initialOperaState = Object.freeze({
   activeCandidateId: null,
   mode: 'analyze',
   devViewOpen: false,
+  model: 'geoclip-v1',
+  useVlmClues: true,
+  models: [],
+  modelsError: null,
+  roundTripMs: null,
   panelOpen: true,
 });
 

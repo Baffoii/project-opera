@@ -16,7 +16,10 @@
   color: var(--opera-fg);
   border: 1px solid var(--opera-line);
   border-radius: 8px;
-  font: 13px/1.45 Inter, system-ui, sans-serif;
+  font:
+    13px/1.45 Inter,
+    system-ui,
+    sans-serif;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 .opera-root[hidden],
@@ -257,7 +260,10 @@
   border: 1px solid rgba(120, 200, 255, 0.28);
   border-radius: 6px;
   letter-spacing: 0.18em;
-  font: 600 12px Inter, system-ui, sans-serif;
+  font:
+    600 12px Inter,
+    system-ui,
+    sans-serif;
   cursor: pointer;
 }
 .opera-visually-hidden {
@@ -266,4 +272,33 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+}
+
+.opera-dev .opera-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+.opera-select {
+  background: rgba(8, 20, 32, 0.9);
+  color: var(--opera-fg);
+  border: 1px solid var(--opera-line);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.opera-kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.opera-kv dt {
+  color: var(--opera-muted);
+}
+.opera-kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }

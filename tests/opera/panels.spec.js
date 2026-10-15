@@ -4,6 +4,11 @@ import { buildMockAnalysis } from '../../src/opera/api/mockFixtures.js';
 import { groupClues, mountCluesPanel } from '../../src/opera/ui/cluesPanel.js';
 import { mountCandidatesPanel } from '../../src/opera/ui/candidatesPanel.js';
 import { mountUploadPanel } from '../../src/opera/ui/uploadPanel.js';
+import {
+  geoModelOptions,
+  mountDevPanel,
+  pickModel,
+} from '../../src/opera/ui/devPanel.js';
 import { RIGHTS_ATTESTATION } from '../../src/opera/validation.js';
 
 const analysis = (name = 'x.jpg') =>
@@ -211,5 +216,105 @@ describe('upload panel', () => {
     expect(store.get().analysis).toBeNull();
     expect(onRemove).toHaveBeenCalledWith(prior);
     expect(URL.revokeObjectURL).toHaveBeenCalled();
+  });
+});
+
+describe('developer panel', () => {
+  const models = [
+    { id: 'mock', role: 'geolocation', kind: 'mock', available: true },
+    {
+      id: 'geoclip-v1',
+      role: 'geolocation',
+      kind: 'real',
+      available: false,
+      unavailable_reason: 'torch missing',
+    },
+    {
+      id: 'vlm-clues',
+      role: 'clues',
+      kind: 'real',
+      available: false,
+      unavailable_reason: 'no key',
+    },
+  ];
+
+  it('picks the real model when usable, otherwise falls back to a usable one', () => {
+    const usable = geoModelOptions(
+      models.map((m) =>
+        m.id === 'geoclip-v1' ? { ...m, available: true } : m,
+      ),
+    );
+    expect(pickModel(usable, 'mock')).toBe('mock');
+    expect(pickModel(usable, 'nope')).toBe('geoclip-v1');
+    expect(pickModel(geoModelOptions(models), 'geoclip-v1')).toBe('mock');
+  });
+
+  it('lists only geolocation models and disables unavailable ones with the reason', async () => {
+    const store = createOperaStore({ devViewOpen: true });
+    const panel = mountDevPanel(host, {
+      store,
+      mock: false,
+      loadModels: async () => models,
+    });
+    await panel.refresh();
+    const options = [...host.querySelectorAll('select option')];
+    expect(options.map((o) => o.value)).toEqual(['mock', 'geoclip-v1']);
+    expect(options[1].disabled).toBe(true);
+    expect(options[1].textContent).toContain('torch missing');
+    expect(store.get().model).toBe('mock');
+    expect(host.textContent).toContain('VLM unavailable (no key)');
+    expect(host.textContent).toContain('MOCK clues');
+  });
+
+  it('toggles VLM clues in the store and shows last-request latency', async () => {
+    const store = createOperaStore({
+      devViewOpen: true,
+      analysis: {
+        model_kind: 'real',
+        clues_kind: 'mock',
+        versions: { geo_adapter: 'geoclip-v1@geoclip-1.2.3' },
+        latency_ms: { geolocate: 2100.4, model_infer: 1800 },
+        cost_estimate_usd: null,
+      },
+      roundTripMs: 2500.2,
+    });
+    const panel = mountDevPanel(host, {
+      store,
+      mock: false,
+      loadModels: async () => models,
+    });
+    await panel.refresh();
+    const box = host.querySelector('#opera-vlm');
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    expect(store.get().useVlmClues).toBe(false);
+    expect(host.textContent).toContain('Latency: geolocate');
+    expect(host.textContent).toContain('2100 ms');
+    expect(host.textContent).toContain('round trip');
+    expect(host.textContent).toContain('geoclip-v1@geoclip-1.2.3');
+  });
+
+  it('disables selection in frontend mock mode without calling the backend', () => {
+    const loadModels = vi.fn();
+    const store = createOperaStore({ devViewOpen: true });
+    mountDevPanel(host, { store, mock: true, loadModels });
+    expect(loadModels).not.toHaveBeenCalled();
+    expect(host.querySelector('select')).toBeNull();
+    expect(host.textContent).toContain('Frontend mock mode');
+  });
+
+  it('surfaces a model-list failure instead of hiding it', async () => {
+    const store = createOperaStore({ devViewOpen: true });
+    const panel = mountDevPanel(host, {
+      store,
+      mock: false,
+      loadModels: async () => {
+        throw new Error('Could not reach the OPERA backend.');
+      },
+    });
+    await panel.refresh();
+    expect(host.querySelector('[role=alert]')?.textContent).toContain(
+      'Could not reach',
+    );
   });
 });

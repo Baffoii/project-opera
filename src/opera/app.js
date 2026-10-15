@@ -5,6 +5,7 @@ import { h, mockBadge } from './ui/dom.js';
 import { mountUploadPanel } from './ui/uploadPanel.js';
 import { mountCluesPanel } from './ui/cluesPanel.js';
 import { mountCandidatesPanel } from './ui/candidatesPanel.js';
+import { mountDevPanel } from './ui/devPanel.js';
 
 /**
  * Mount OPERA beside the upstream globe. The viewer is only used through the
@@ -63,7 +64,7 @@ export function mountOpera({
   let abortController = null;
 
   async function analyze() {
-    const { currentImage, rightsAttested } = store.get();
+    const { currentImage, rightsAttested, model, useVlmClues } = store.get();
     if (!currentImage || !rightsAttested) return;
     abortController?.abort();
     abortController = new AbortController();
@@ -72,13 +73,18 @@ export function mountOpera({
       error: null,
       analysis: null,
       activeCandidateId: null,
+      roundTripMs: null,
     });
+    const startedAt = performance.now();
     try {
       const analysis = await client.analyze(currentImage.file, {
+        model,
+        useVlmClues,
         signal: abortController.signal,
       });
       store.set({
         analysis,
+        roundTripMs: performance.now() - startedAt,
         status: 'idle',
         activeCandidateId: analysis.candidates?.[0]?.rank ?? null,
       });
@@ -106,6 +112,11 @@ export function mountOpera({
     }),
     mountCluesPanel(body, { store }),
     mountCandidatesPanel(body, { store, onFlyTo: (c) => overlays.flyTo(c) }),
+    mountDevPanel(body, {
+      store,
+      mock: client.mock,
+      loadModels: () => client.listModels(),
+    }),
   ];
 
   const unsubscribe = store.subscribe((state, _prev, changed) => {

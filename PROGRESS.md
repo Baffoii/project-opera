@@ -1,12 +1,14 @@
 # OPERA V1 progress
 
 ## Morning Summary
-_(Work in progress - M0 done. This block is rewritten at the end of the session.)_
+_(Work in progress: M0-M3 done. This block is rewritten at the end of the session.)_
 
-- Status: M0, M1, M2 DONE; M3-M5 pending.
-- Run upstream: `export PATH=$HOME/.opera-tools/node-v24.22.0-darwin-arm64/bin:$PATH && npm run dev`
-- Mocked so far: frontend runs on MOCK fixtures with `VITE_OPERA_MOCK=1`; backend only has the `mock` geo adapter (`model_kind: "mock"`); `geoclip-v1` and `vlm-clues` are registered as unavailable.
-- Run backend: `cd backend && OPERA_API_KEY=<choose> .venv/bin/uvicorn --factory app.main:create_app --port 8000`; tests: `cd backend && .venv/bin/pytest`.
+- Status: M0, M1, M2, M3 DONE; M4 (Nominatim context) and M5 (benchmark, docs, compose) pending.
+- Real now: `geoclip-v1` runs GeoCLIP locally on CPU through the full UI (a Lisbon photo with no EXIF returned Lisbon as rank 1, `model_kind: "real"`, about 10 s on first request incl. model load). Scores are raw, uncalibrated; thresholds are provisional.
+- Mocked: with no `OPENAI_API_KEY`, clues are labelled `MOCK` (`clues_kind: "mock"`). The VLM adapter is **built, not yet verified against the live API** (tested with fake clients and a mocked HTTP transport only).
+- Needs a human: licenses for GeoCLIP weights and the CLIP backbone (`needs_human_review` in `backend/registry/models.yaml`); PostGIS path and Google 3D tiles untested.
+- Run backend: `cd backend && OPERA_API_KEY=<choose> .venv/bin/uvicorn --factory app.main:create_app --port 8000`; tests: `cd backend && .venv/bin/pytest`; frontend tests: `npx vitest run`.
+- Run UI against it: `VITE_OPERA_API_KEY=<same> VITE_OPERA_API_URL=http://127.0.0.1:8000 npm run dev` (open the OPERA panel, Developer view shows the model selector and latency). `VITE_OPERA_MOCK=1` runs the UI with no backend.
 - Go live with the VLM: add `OPENAI_API_KEY` to `.env` -> restart backend -> run `python scripts/smoke_vlm.py`.
 
 ---
@@ -53,3 +55,23 @@ Globe check: headless Chrome loaded `http://localhost:4174/`, 8 canvases present
 - The frontend defaults to `model=geoclip-v1`, so against this backend a real-mode analyze returns a visible 503 until M3 adds GeoCLIP and the model selector. I did not test the real-mode frontend against the live backend in a browser (only unit tests against a fake fetch, and curl against the backend).
 - No Alembic migrations: `create_all` only (D-log). Audit log is never pruned.
 **Remaining work:** M3 (VLM adapter, GeoCLIP, dev panel/model selector), M4 (Nominatim context), M5 (benchmark, docs, compose, final summary).
+
+## M3 - Real inference - DONE (VLM adapter not verified live)
+**Changed files:** new `backend/app/adapters/{vlm_clues,geoclip}.py`, `backend/scripts/smoke_vlm.py`, `scripts/smoke_vlm.py` (repo-root launcher), `backend/tests/{test_vlm_clues,test_geoclip_adapter,test_pipeline_clues}.py`, `src/opera/ui/devPanel.js`, `tests/opera/e2e/real-ui.mjs`. Edited: `backend/app/{config,schemas,services/pipeline}.py`, `backend/app/adapters/{base,mock,registry}.py`, `backend/registry/models.yaml`, `backend/pyproject.toml` (geoclip extra pinned, respx dropped), `backend/tests/{conftest,test_lifecycle}.py`, `src/opera/{app.js,opera.css,state/store.js}`, `tests/opera/panels.spec.js`, `.env.example`, `docs/DECISIONS.md` (D18-D27). **One upstream edit:** `build/vite.js` CSP `connect-src` (D26).
+**Commands run:** `pip install torch geoclip transformers` into `backend/.venv` (weights in the wheel; CLIP backbone ~1.6 GB downloaded to git-ignored `backend/.model_cache`); `backend/.venv/bin/pytest`; `npx vitest run`; `npm test`; `npm run check:boundaries`; `npm run format:check`; live `uvicorn` on :8000 + Vite on :4180 with logs in `/tmp/opera-e2e`, `node tests/opera/e2e/real-ui.mjs` and the mock E2E, then all servers stopped.
+**Test evidence:**
+- Backend pytest: `68 passed` (was 41). New: VLM adapter via fake client (success + caps, request shape with `store=False`/structured output/downscaled data URL, model abstain, refusal is not an abstain, unparsable, incomplete, timeout, 429-style error without leaking detail, unavailable states), the real OpenAI SDK driven through `httpx.MockTransport` (checks URL, model, strict json_schema, data-URL image, no filename, auth header), strict-schema keyword walk, GeoCLIP NMS and fake-model predict, and a **real GeoCLIP inference test** on a synthetic image (ran, not skipped), pipeline cases (mock-clue fallback, real clue cost/versions, abstain, refusal notice, clue failure continues, exception detail not leaked, stage/notes merge, latency total).
+- Vitest: `Test Files 5 passed (5) / Tests 40 passed (40)` (+5 developer panel tests).
+- Real-mode browser E2E (`real-ui.mjs`, headless Chrome, real backend, EXIF-free Commons photo of Elevador da Lavra, Lisbon): 15/15 PASS, no console errors. Candidates (rank, lat, lon, raw score, band): `1 38.71 -9.13 0.0129 low`, `2 41.15 -8.61 0.0022`, `3 40.21 -8.43 0.0011`, `4 39.91 -9.58 0.0003`, `5 39.40 -9.13 0.0002`; `model_kind: "real"`, `geo_adapter: geoclip-v1@geoclip-1.2.3`. Latency (first request, includes one-off model load): sanitize 282 ms, model_load 5107 ms, model_infer 4830 ms, geolocate 9938 ms, browser round trip about 10.7 s.
+- Mock-mode E2E: 12/12 PASS. Upstream `npm test`: `tests 6534 / pass 6533 / fail 0 / skipped 1` (+1/1, +13/13); `check:boundaries` passed; `format:check` passed.
+**Mocked / stubbed:** `mock-clues` shown whenever the real VLM is unavailable (the case in this build); labelled `MOCK` in the UI and notices. `mock` geo adapter remains selectable.
+**Blockers:** none. (OSV-5M fallback was not needed.)
+**Known issues / honesty notes:**
+- **VLM clue adapter: built, not yet verified against live API.** The model name, prices, and strict-schema acceptance come from docs and local checks only; the owner's `scripts/smoke_vlm.py` run is the first live test.
+- A real bug was found only by running real mode in a browser: upstream CSP blocked `http://127.0.0.1:8000` (D26). Another was `latency_ms.total` double counting (D27, test added).
+- My first mocked-HTTP attempt (respx) did not intercept the SDK and sent one request with a fake key to api.openai.com (rejected 401; the payload was a synthetic JPEG). I replaced it with an injected `httpx.MockTransport` so tests cannot reach the network, and removed respx.
+- Real scores are tiny raw gallery masses (0.0002-0.056). Bands and the abstention threshold are provisional (D25) and the single-photo run above is an anecdote, not an accuracy claim. M5 will measure.
+- Candidates show coordinates only until M4. First request is slow (model load); the model stays loaded afterwards.
+- Licenses: GeoCLIP code is MIT (LICENSE read from the wheel). Weights and the OpenAI CLIP backbone licenses were not read: `needs_human_review`.
+- The OPERA panel in the 1440x900 screenshot sits under upstream's first-run "Choose your first view" dialog on a fresh profile; not changed.
+**Remaining work:** M4 (Nominatim context + OSM attribution, candidate region labels), M5 (benchmark mode, calibration, docker-compose (untested), README/API/PRIVACY docs, final Morning Summary).

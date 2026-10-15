@@ -98,13 +98,14 @@ def run_analysis(
         geo = adapter.predict(image.data, image_sha256=image.sha256, top_k=5)
         latency["geolocate"] = round((time.perf_counter() - t) * 1000, 2)
         for stage, ms in geo.stages.items():
-            latency[stage] = round(ms, 2)
+            latency[stage] = round(ms, 2)  # sub-stages of "geolocate": excluded from "total"
         versions_extra = dict(geo.notes)
         geo_error = None
     except Exception as exc:
         log.warning("geo adapter %s failed: %s", adapter.id, type(exc).__name__)
         geo, geo_error, versions_extra = None, f"{adapter.id} failed ({type(exc).__name__}).", {}
 
+    geo_substages = set(geo.stages) if geo else set()
     clues: list[dict] = []
     region_guesses: list[dict] = []
     clues_kind = "none"
@@ -222,7 +223,7 @@ def run_analysis(
         session.add(row)
         session.flush()
         persisted = {**latency, "persist": round((time.perf_counter() - t) * 1000, 2)}
-        persisted["total"] = round(sum(persisted.values()), 2)
+        persisted["total"] = round(sum(v for k, v in persisted.items() if k not in geo_substages), 2)
         row.latency = persisted  # a new dict, so the JSON column change is detected
         result = analysis_from_row(row)
     return result
